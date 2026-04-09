@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.demo.app.infrastructure.config.StatusTransitions;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -36,9 +38,7 @@ public class AppealService {
         AppealEntity entity = appealRepository.findById(appealId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appeal", appealId));
 
-        if (!"SUBMITTED".equals(entity.getStatus()) && !"UNDER_REVIEW".equals(entity.getStatus())) {
-            throw new ConflictException("Appeal is not in a reviewable state: " + entity.getStatus());
-        }
+        StatusTransitions.validate(StatusTransitions.APPEAL, entity.getStatus(), status);
 
         LocalDateTime now = LocalDateTime.now();
         entity.setReviewerId(reviewerId);

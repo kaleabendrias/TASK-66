@@ -29,4 +29,5 @@ public class Incident {
     private LocalDateTime updatedAt;
     private String address;
     private String crossStreet;
+    private String closureCode;
 }

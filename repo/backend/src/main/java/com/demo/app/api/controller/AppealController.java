@@ -1,5 +1,6 @@
 package com.demo.app.api.controller;
 
+import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.api.dto.AppealDto;
 import com.demo.app.api.dto.CreateAppealRequest;
 import com.demo.app.api.dto.ReviewAppealRequest;
@@ -58,6 +59,7 @@ public class AppealController {
     }
 
     @PostMapping
+    @Audited(entityType = "APPEAL", action = "CREATE")
     public ResponseEntity<AppealDto> create(@Valid @RequestBody CreateAppealRequest request) {
         Long userId = getCurrentUserId();
         Appeal appeal = appealService.create(
@@ -71,6 +73,7 @@ public class AppealController {
 
     @PostMapping("/{id}/review")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMINISTRATOR')")
+    @Audited(entityType = "APPEAL", action = "REVIEW")
     public ResponseEntity<AppealDto> review(@PathVariable Long id, @RequestBody ReviewAppealRequest request) {
         Long reviewerId = getCurrentUserId();
         Appeal appeal = appealService.review(id, reviewerId, request.status(), request.reviewNotes());
@@ -98,6 +101,35 @@ public class AppealController {
         if (contentType == null || !(contentType.startsWith("image/") || contentType.equals("application/pdf"))) {
             throw new IllegalArgumentException("Only image and PDF files are allowed");
         }
+        // Deep MIME validation via magic bytes
+        try {
+            byte[] header = new byte[8];
+            java.io.InputStream is = file.getInputStream();
+            int read = is.read(header);
+            is.close();
+            if (read >= 4) {
+                boolean validMagic = false;
+                // JPEG: FF D8 FF
+                if (header[0] == (byte)0xFF && header[1] == (byte)0xD8 && header[2] == (byte)0xFF) validMagic = true;
+                // PNG: 89 50 4E 47
+                if (header[0] == (byte)0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) validMagic = true;
+                // GIF: 47 49 46
+                if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46) validMagic = true;
+                // PDF: 25 50 44 46
+                if (header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46) validMagic = true;
+                // WebP: 52 49 46 46 ... 57 45 42 50
+                if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 && read >= 8
+                    && header[4] == 0x57 && header[5] == 0x45 && header[6] == 0x42 && header[7] == 0x50) validMagic = true;
+                if (!validMagic) {
+                    throw new IllegalArgumentException("File content does not match an allowed type (image or PDF)");
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Unable to validate file content");
+        }
+
         long existingCount = appealEvidenceRepository.countByAppealId(id);
         if (existingCount >= 5) {
             throw new ConflictException("Maximum 5 evidence files per appeal");

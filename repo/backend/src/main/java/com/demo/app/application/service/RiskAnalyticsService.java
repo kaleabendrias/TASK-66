@@ -63,41 +63,51 @@ public class RiskAnalyticsService {
         double score = 0.0;
         Map<String, Object> factors = new HashMap<>();
 
-        // Failed logins: look up by username, not userId
-        UserEntity user = userRepository.findById(userId).orElse(null);
-        long failedLogins = 0;
-        if (user != null) {
-            failedLogins = loginAttemptRepository.countRecentFailed(user.getUsername(), LocalDateTime.now().minusDays(30));
-        }
-        factors.put("failed_logins_30d", failedLogins);
-        score += failedLogins * 5.0;
+        // Seller-operational risk: incidents filed against seller's products
+        long incidentsReportedAgainst = incidentRepository.findByReporterId(userId).size();
+        // For seller-specific: count incidents where description mentions the seller
+        // More accurate: count all incidents in 30-day window
+        List<com.demo.app.persistence.entity.IncidentEntity> allRecentIncidents =
+            incidentRepository.findAll().stream()
+                .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
+                .toList();
 
-        // Open incidents reported against or by this user
-        long openIncidents = incidentRepository.findByReporterId(userId).stream()
-                .filter(i -> "OPEN".equals(i.getStatus()) || "ACKNOWLEDGED".equals(i.getStatus()))
+        // Staff-flagged exceptions (escalated incidents)
+        long escalatedIncidents = allRecentIncidents.stream()
+                .filter(i -> i.getEscalationLevel() > 0)
+                .count();
+        factors.put("escalated_incidents_30d", escalatedIncidents);
+        score += escalatedIncidents * 15.0;
+
+        // Incidents reported by this user (seller filing reports = neutral)
+        long sellerReportedIncidents = incidentRepository.findByReporterId(userId).stream()
                 .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
                 .count();
-        factors.put("open_incidents", openIncidents);
-        score += openIncidents * 10.0;
+        factors.put("seller_reported_incidents_30d", sellerReportedIncidents);
 
-        // Rejected appeals
+        // Rejected appeals (staff exceptions denied)
         long rejectedAppeals = appealRepository.findByUserId(userId).stream()
                 .filter(a -> "REJECTED".equals(a.getStatus()))
                 .filter(a -> a.getResolvedAt() != null && a.getResolvedAt().isAfter(thirtyDaysAgo))
                 .count();
-        factors.put("rejected_appeals", rejectedAppeals);
-        score += rejectedAppeals * 8.0;
+        factors.put("rejected_appeals_30d", rejectedAppeals);
+        score += rejectedAppeals * 10.0;
+
+        // Failed logins (account compromise risk)
+        UserEntity user = userRepository.findById(userId).orElse(null);
+        long failedLogins = 0;
+        if (user != null) {
+            failedLogins = loginAttemptRepository.countRecentFailed(user.getUsername(), thirtyDaysAgo);
+        }
+        factors.put("failed_logins_30d", failedLogins);
+        score += failedLogins * 3.0;
 
         // High severity risk events
         long highSeverityEvents = recentEvents.stream()
                 .filter(e -> "HIGH".equals(e.getSeverity()) || "CRITICAL".equals(e.getSeverity()))
                 .count();
         factors.put("high_severity_events_30d", highSeverityEvents);
-        score += highSeverityEvents * 15.0;
-
-        long totalEvents = recentEvents.size();
-        factors.put("total_events_30d", totalEvents);
-        score += totalEvents * 2.0;
+        score += highSeverityEvents * 12.0;
 
         score = Math.min(score, 100.0);
 
@@ -114,8 +124,8 @@ public class RiskAnalyticsService {
         riskScore.setScore(score);
         riskScore.setFactors(factorsJson);
         riskScore.setComputedAt(LocalDateTime.now());
-        riskScore.setSellerComplaintCount((int) openIncidents);
-        riskScore.setOpenIncidentCount((int) openIncidents);
+        riskScore.setSellerComplaintCount((int) escalatedIncidents);
+        riskScore.setOpenIncidentCount((int) sellerReportedIncidents);
         riskScore.setAppealRejectionCount((int) rejectedAppeals);
 
         return riskScoreRepository.save(riskScore);

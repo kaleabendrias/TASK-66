@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.demo.app.persistence.repository.UserRepository;
+
 import java.lang.reflect.Method;
 
 @Aspect
@@ -19,6 +21,7 @@ import java.lang.reflect.Method;
 public class AuditAspect {
 
     private final AuditService auditService;
+    private final UserRepository userRepository;
 
     @Around("@annotation(audited)")
     public Object audit(ProceedingJoinPoint joinPoint, Audited audited) throws Throwable {
@@ -29,15 +32,10 @@ public class AuditAspect {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication != null && authentication.isAuthenticated()
                     && !"anonymousUser".equals(authentication.getPrincipal())) {
-                Object principal = authentication.getPrincipal();
-                try {
-                    Method getIdMethod = principal.getClass().getMethod("getId");
-                    Object id = getIdMethod.invoke(principal);
-                    if (id instanceof Long) {
-                        actorId = (Long) id;
-                    }
-                } catch (NoSuchMethodException ignored) {
-                }
+                String username = authentication.getName();
+                actorId = userRepository.findByUsername(username)
+                        .map(u -> u.getId())
+                        .orElse(null);
             }
 
             String ipAddress = null;
@@ -50,32 +48,50 @@ public class AuditAspect {
 
             Long entityId = extractEntityId(result, joinPoint.getArgs());
 
+            // Extract the response body for logging, not the full ResponseEntity
+            Object logValue = result;
+            if (logValue instanceof org.springframework.http.ResponseEntity<?> re) {
+                logValue = re.getBody();
+            }
+
             auditService.log(
                     audited.entityType(),
                     entityId,
                     audited.action(),
                     actorId,
                     null,
-                    result,
+                    logValue,
                     ipAddress
             );
-        } catch (Exception ignored) {
-            // Do not fail the original operation due to audit logging failure
+        } catch (Exception e) {
+            // Log audit failures but don't fail the original operation
+            org.slf4j.LoggerFactory.getLogger(AuditAspect.class).warn("Audit logging failed: {}", e.getMessage());
         }
 
         return result;
     }
 
     private Long extractEntityId(Object result, Object[] args) {
-        if (result != null) {
+        // Unwrap ResponseEntity
+        Object body = result;
+        if (body != null && body instanceof org.springframework.http.ResponseEntity<?> re) {
+            body = re.getBody();
+        }
+
+        if (body != null) {
             try {
-                Method getIdMethod = result.getClass().getMethod("getId");
-                Object id = getIdMethod.invoke(result);
-                if (id instanceof Long) {
-                    return (Long) id;
-                }
-            } catch (Exception ignored) {
-            }
+                Method getIdMethod = body.getClass().getMethod("id");  // records use id() not getId()
+                Object id = getIdMethod.invoke(body);
+                if (id instanceof Long) return (Long) id;
+                if (id instanceof Number) return ((Number) id).longValue();
+            } catch (NoSuchMethodException e) {
+                try {
+                    Method getIdMethod = body.getClass().getMethod("getId");
+                    Object id = getIdMethod.invoke(body);
+                    if (id instanceof Long) return (Long) id;
+                    if (id instanceof Number) return ((Number) id).longValue();
+                } catch (Exception ignored) {}
+            } catch (Exception ignored) {}
         }
 
         for (Object arg : args) {

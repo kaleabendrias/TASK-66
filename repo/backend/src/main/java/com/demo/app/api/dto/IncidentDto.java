@@ -18,5 +18,6 @@ public record IncidentDto(
         LocalDateTime acknowledgedAt,
         LocalDateTime resolvedAt,
         String address,
-        String crossStreet
+        String crossStreet,
+        String closureCode
 ) {}

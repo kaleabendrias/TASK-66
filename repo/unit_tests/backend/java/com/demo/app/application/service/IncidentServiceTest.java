@@ -105,7 +105,7 @@ class IncidentServiceTest {
         Incident incident = incidentService.create(
                 reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
 
-        Incident updated = incidentService.updateStatus(incident.getId(), "ACKNOWLEDGED");
+        Incident updated = incidentService.updateStatus(incident.getId(), "ACKNOWLEDGED", null);
 
         assertEquals("ACKNOWLEDGED", updated.getStatus());
     }
@@ -116,13 +116,13 @@ class IncidentServiceTest {
         Incident incident = incidentService.create(
                 reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
 
-        // Move forward to RESOLVED
-        incidentService.updateStatus(incident.getId(), "ACKNOWLEDGED");
-        incidentService.updateStatus(incident.getId(), "IN_PROGRESS");
-        incidentService.updateStatus(incident.getId(), "RESOLVED");
+        // Move forward to RESOLVED (closure code required for RESOLVED)
+        incidentService.updateStatus(incident.getId(), "ACKNOWLEDGED", null);
+        incidentService.updateStatus(incident.getId(), "IN_PROGRESS", null);
+        incidentService.updateStatus(incident.getId(), "RESOLVED", "FIXED");
 
-        assertThrows(IllegalArgumentException.class,
-                () -> incidentService.updateStatus(incident.getId(), "OPEN"));
+        assertThrows(IllegalStateException.class,
+                () -> incidentService.updateStatus(incident.getId(), "OPEN", null));
     }
 
     @Test

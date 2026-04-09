@@ -22,6 +22,7 @@ public class Listing {
     private List<String> tags;
     private boolean featured;
     private long viewCount;
+    private long weeklyViews;
     private double searchRank;
     private String metadata;
     private ListingStatus status;

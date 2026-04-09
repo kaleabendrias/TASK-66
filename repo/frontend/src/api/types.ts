@@ -99,6 +99,7 @@ export interface Listing {
   tags: string[];
   featured: boolean;
   viewCount: number;
+  weeklyViews: number;
   searchRank: number;
   price: number | null;
   sqft: number | null;

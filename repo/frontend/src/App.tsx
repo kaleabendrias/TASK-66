@@ -22,6 +22,7 @@ import IncidentDetailPage from '@/pages/IncidentDetailPage';
 import AppealsPage from '@/pages/AppealsPage';
 import ModeratorDashboardPage from '@/pages/ModeratorDashboardPage';
 import AdminDashboardPage from '@/pages/AdminDashboardPage';
+import CheckoutPage from '@/pages/CheckoutPage';
 
 const App: React.FC = () => {
   const loadFromStorage = useAuthStore((s) => s.loadFromStorage);
@@ -59,6 +60,7 @@ const App: React.FC = () => {
           <Route path="/products" element={<ProductsPage />} />
           <Route path="/products/:id" element={<ProductDetailPage />} />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
           <Route
             path="/my-listings"
             element={

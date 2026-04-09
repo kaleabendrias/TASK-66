@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,4 +19,8 @@ public class BenefitItem {
     private String benefitValue;
     private String scope;
     private String exclusionGroup;
+    private Long categoryId;
+    private Long sellerId;
+    private LocalDateTime validFrom;
+    private LocalDateTime validTo;
 }

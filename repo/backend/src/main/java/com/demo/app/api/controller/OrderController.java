@@ -1,5 +1,6 @@
 package com.demo.app.api.controller;
 
+import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.api.dto.OrderDto;
 import com.demo.app.application.service.OrderService;
 import com.demo.app.domain.enums.OrderStatus;
@@ -48,6 +49,7 @@ public class OrderController {
     }
 
     @PostMapping
+    @Audited(entityType = "ORDER", action = "PLACE")
     public ResponseEntity<OrderDto> placeOrder(@RequestBody OrderDto dto) {
         Long authenticatedUserId = getCurrentUserId();
         Order order = Order.builder()
@@ -60,6 +62,7 @@ public class OrderController {
     }
 
     @PatchMapping("/{id}/status")
+    @Audited(entityType = "ORDER", action = "STATUS_CHANGE")
     public ResponseEntity<OrderDto> updateStatus(@PathVariable Long id, @RequestParam OrderStatus status) {
         Order order = orderService.getById(id);
 

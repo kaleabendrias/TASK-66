@@ -36,6 +36,18 @@ public class BenefitItemEntity {
     @Column(name = "exclusion_group", length = 50)
     private String exclusionGroup;
 
+    @Column(name = "category_id")
+    private Long categoryId;
+
+    @Column(name = "seller_id")
+    private Long sellerId;
+
+    @Column(name = "valid_from")
+    private java.time.LocalDateTime validFrom;
+
+    @Column(name = "valid_to")
+    private java.time.LocalDateTime validTo;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -47,6 +59,10 @@ public class BenefitItemEntity {
                 .benefitValue(benefitValue)
                 .scope(scope)
                 .exclusionGroup(exclusionGroup)
+                .categoryId(categoryId)
+                .sellerId(sellerId)
+                .validFrom(validFrom)
+                .validTo(validTo)
                 .build();
     }
 }

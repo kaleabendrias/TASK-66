@@ -1,5 +1,6 @@
 package com.demo.app.api.controller;
 
+import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.api.dto.ProductDto;
 import com.demo.app.api.mapper.ProductMapper;
 import com.demo.app.application.service.ProductService;
@@ -56,6 +57,7 @@ public class ProductController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
+    @Audited(entityType = "PRODUCT", action = "CREATE")
     public ResponseEntity<ProductDto> create(@RequestBody ProductDto dto) {
         Product model = productMapper.toModel(dto);
         // Force sellerId to authenticated user, ignoring any value from the DTO
@@ -66,6 +68,7 @@ public class ProductController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
+    @Audited(entityType = "PRODUCT", action = "UPDATE")
     public ResponseEntity<ProductDto> update(@PathVariable Long id, @RequestBody ProductDto dto) {
         Product existing = productService.getById(id);
         if (!existing.getSellerId().equals(getCurrentUserId()) && !isAdmin()) {
@@ -80,6 +83,7 @@ public class ProductController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
+    @Audited(entityType = "PRODUCT", action = "DELETE")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         Product existing = productService.getById(id);
         if (!existing.getSellerId().equals(getCurrentUserId()) && !isAdmin()) {

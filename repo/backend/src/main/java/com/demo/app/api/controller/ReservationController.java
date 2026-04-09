@@ -1,5 +1,6 @@
 package com.demo.app.api.controller;
 
+import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.api.dto.ReservationRequest;
 import com.demo.app.api.dto.StockReservationDto;
 import com.demo.app.application.service.ReservationService;
@@ -23,6 +24,7 @@ public class ReservationController {
     private final UserRepository userRepository;
 
     @PostMapping
+    @Audited(entityType = "RESERVATION", action = "RESERVE")
     public ResponseEntity<StockReservationDto> reserve(@Valid @RequestBody ReservationRequest request) {
         Long userId = getCurrentUserId();
         StockReservation reservation = reservationService.reserve(
@@ -31,12 +33,14 @@ public class ReservationController {
     }
 
     @PostMapping("/{id}/confirm")
+    @Audited(entityType = "RESERVATION", action = "CONFIRM")
     public ResponseEntity<StockReservationDto> confirm(@PathVariable Long id) {
         enforceReservationOwnership(id);
         return ResponseEntity.ok(toDto(reservationService.confirm(id)));
     }
 
     @PostMapping("/{id}/cancel")
+    @Audited(entityType = "RESERVATION", action = "CANCEL")
     public ResponseEntity<StockReservationDto> cancel(@PathVariable Long id) {
         enforceReservationOwnership(id);
         return ResponseEntity.ok(toDto(reservationService.cancel(id)));

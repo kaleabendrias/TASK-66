@@ -1,5 +1,6 @@
 package com.demo.app.api.controller;
 
+import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.api.dto.*;
 import com.demo.app.application.service.IncidentService;
 import com.demo.app.domain.exception.OwnershipViolationException;
@@ -52,6 +53,7 @@ public class IncidentController {
     }
 
     @PostMapping
+    @Audited(entityType = "INCIDENT", action = "CREATE")
     public ResponseEntity<IncidentDto> create(@Valid @RequestBody CreateIncidentRequest request) {
         Long reporterId = getCurrentUserId();
         Incident incident = incidentService.create(
@@ -68,6 +70,7 @@ public class IncidentController {
 
     @PostMapping("/{id}/acknowledge")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMINISTRATOR')")
+    @Audited(entityType = "INCIDENT", action = "ACKNOWLEDGE")
     public ResponseEntity<IncidentDto> acknowledge(@PathVariable Long id) {
         Long assigneeId = getCurrentUserId();
         return ResponseEntity.ok(toDto(incidentService.acknowledge(id, assigneeId)));
@@ -75,9 +78,11 @@ public class IncidentController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMINISTRATOR')")
+    @Audited(entityType = "INCIDENT", action = "STATUS_CHANGE")
     public ResponseEntity<IncidentDto> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         String newStatus = body.get("status");
-        return ResponseEntity.ok(toDto(incidentService.updateStatus(id, newStatus)));
+        String closureCode = body.get("closureCode");
+        return ResponseEntity.ok(toDto(incidentService.updateStatus(id, newStatus, closureCode)));
     }
 
     @PostMapping("/{id}/comments")
@@ -143,7 +148,8 @@ public class IncidentController {
                 i.getAcknowledgedAt(),
                 i.getResolvedAt(),
                 i.getAddress(),
-                i.getCrossStreet()
+                i.getCrossStreet(),
+                i.getClosureCode()
         );
     }
 

@@ -161,7 +161,7 @@ const ListingDiscoveryPage: React.FC = () => {
   const trending = useMemo(() => {
     return [...listings]
       .filter((l) => l.status === 'PUBLISHED')
-      .sort((a, b) => b.viewCount - a.viewCount)
+      .sort((a, b) => (b.weeklyViews ?? 0) - (a.weeklyViews ?? 0))
       .slice(0, 5);
   }, [listings]);
 

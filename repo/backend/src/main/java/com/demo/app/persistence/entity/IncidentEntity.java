@@ -69,6 +69,9 @@ public class IncidentEntity {
     @Column(name = "cross_street", length = 255)
     private String crossStreet;
 
+    @Column(name = "closure_code", length = 50)
+    private String closureCode;
+
     public Incident toModel() {
         return Incident.builder()
                 .id(id)
@@ -88,6 +91,7 @@ public class IncidentEntity {
                 .updatedAt(updatedAt)
                 .address(address)
                 .crossStreet(crossStreet)
+                .closureCode(closureCode)
                 .build();
     }
 }

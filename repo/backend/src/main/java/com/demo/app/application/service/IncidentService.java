@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.demo.app.infrastructure.config.StatusTransitions;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -85,18 +87,14 @@ public class IncidentService {
         return incidentRepository.save(entity).toModel();
     }
 
-    public Incident updateStatus(Long incidentId, String newStatus) {
+    public Incident updateStatus(Long incidentId, String newStatus, String closureCode) {
         IncidentEntity entity = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Incident", incidentId));
 
-        int currentIndex = STATUS_ORDER.indexOf(entity.getStatus());
-        int newIndex = STATUS_ORDER.indexOf(newStatus);
+        StatusTransitions.validate(StatusTransitions.INCIDENT, entity.getStatus(), newStatus);
 
-        if (newIndex < 0) {
-            throw new IllegalArgumentException("Invalid status: " + newStatus);
-        }
-        if (newIndex <= currentIndex) {
-            throw new IllegalArgumentException("Cannot transition from " + entity.getStatus() + " to " + newStatus);
+        if ("RESOLVED".equals(newStatus) && (closureCode == null || closureCode.isBlank())) {
+            throw new IllegalArgumentException("Closure code is required when resolving an incident");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -105,6 +103,7 @@ public class IncidentService {
 
         if ("RESOLVED".equals(newStatus)) {
             entity.setResolvedAt(now);
+            entity.setClosureCode(closureCode);
         }
 
         return incidentRepository.save(entity).toModel();

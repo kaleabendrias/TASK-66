@@ -48,6 +48,9 @@ public class ListingEntity {
     @Column(name = "view_count", nullable = false)
     private long viewCount;
 
+    @Column(name = "weekly_views", nullable = false)
+    private long weeklyViews;
+
     @Column(name = "search_rank", nullable = false)
     private double searchRank;
 
@@ -100,6 +103,7 @@ public class ListingEntity {
                 .tags(tags != null ? Arrays.asList(tags) : List.of())
                 .featured(featured)
                 .viewCount(viewCount)
+                .weeklyViews(weeklyViews)
                 .searchRank(searchRank)
                 .metadata(metadata)
                 .status(ListingStatus.valueOf(status))

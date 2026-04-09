@@ -152,15 +152,13 @@
                         <exclude>com/demo/app/infrastructure/encryption/EncryptedStringConverter.class</exclude>
                         <exclude>com/demo/app/infrastructure/encryption/EncryptedStringConverterInitializer.class</exclude>
                         <exclude>com/demo/app/DemoApplication.class</exclude>
-                        <!-- Simple CRUD services (thin wrappers, covered by API tests) -->
+                        <!-- Thin CRUD wrappers (covered by API integration tests) -->
                         <exclude>com/demo/app/application/service/CategoryService.class</exclude>
                         <exclude>com/demo/app/application/service/UserService.class</exclude>
                         <exclude>com/demo/app/application/service/OrderService.class</exclude>
                         <exclude>com/demo/app/application/service/ProductService.class</exclude>
                         <exclude>com/demo/app/application/service/WarehouseService.class</exclude>
                         <exclude>com/demo/app/application/service/ListingService.class</exclude>
-                        <exclude>com/demo/app/application/service/AuthService.class</exclude>
-                        <exclude>com/demo/app/application/service/RiskAnalyticsService.class</exclude>
                     </excludes>
                 </configuration>
                 <executions>

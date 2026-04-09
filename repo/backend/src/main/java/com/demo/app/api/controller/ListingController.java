@@ -131,7 +131,7 @@ public class ListingController {
     private ListingDto toDto(Listing l) {
         return new ListingDto(l.getId(), l.getProductId(), l.getTitle(), l.getSlug(), l.getSummary(),
                 l.getTags() != null ? l.getTags().toArray(new String[0]) : null,
-                l.isFeatured(), l.getViewCount(), l.getSearchRank(),
+                l.isFeatured(), l.getViewCount(), l.getWeeklyViews(), l.getSearchRank(),
                 l.getStatus() != null ? l.getStatus().name() : null, l.getPublishedAt(),
                 l.getNeighborhood(), l.getLatitude(), l.getLongitude(),
                 l.getPrice(), l.getSqft(), l.getLayout(),

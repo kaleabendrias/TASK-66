@@ -86,7 +86,11 @@ public class BenefitController {
                 item.getBenefitType(),
                 item.getBenefitValue(),
                 item.getScope(),
-                item.getExclusionGroup()
+                item.getExclusionGroup(),
+                item.getCategoryId(),
+                item.getSellerId(),
+                item.getValidFrom(),
+                item.getValidTo()
         );
     }
 }

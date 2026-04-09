@@ -66,3 +66,30 @@ class TestIncidents:
         )
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
+
+    def test_resolve_requires_closure_code(self, moderator_token, base_url):
+        """RESOLVED transition must include a closureCode."""
+        incident = _create_incident(moderator_token, base_url)
+        iid = incident["id"]
+        headers = auth_header(moderator_token)
+        # Advance to IN_PROGRESS
+        requests.patch(f"{base_url}/incidents/{iid}/status", json={"status": "ACKNOWLEDGED"}, headers=headers)
+        requests.patch(f"{base_url}/incidents/{iid}/status", json={"status": "IN_PROGRESS"}, headers=headers)
+        # Attempt resolve without closure code
+        resp = requests.patch(f"{base_url}/incidents/{iid}/status", json={"status": "RESOLVED"}, headers=headers)
+        assert resp.status_code in (400, 409), f"Expected 400/409 without closure code, got {resp.status_code}"
+
+    def test_resolve_with_closure_code_succeeds(self, moderator_token, base_url):
+        """RESOLVED transition succeeds with a closureCode."""
+        incident = _create_incident(moderator_token, base_url)
+        iid = incident["id"]
+        headers = auth_header(moderator_token)
+        requests.patch(f"{base_url}/incidents/{iid}/status", json={"status": "ACKNOWLEDGED"}, headers=headers)
+        requests.patch(f"{base_url}/incidents/{iid}/status", json={"status": "IN_PROGRESS"}, headers=headers)
+        resp = requests.patch(
+            f"{base_url}/incidents/{iid}/status",
+            json={"status": "RESOLVED", "closureCode": "FIXED"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["closureCode"] == "FIXED"

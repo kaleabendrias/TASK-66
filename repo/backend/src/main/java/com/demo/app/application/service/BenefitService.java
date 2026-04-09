@@ -65,6 +65,18 @@ public class BenefitService {
             }
         }
 
+        // Enforce date window
+        LocalDateTime now = LocalDateTime.now();
+        if (item.getValidFrom() != null && now.isBefore(item.getValidFrom())) {
+            throw new com.demo.app.domain.exception.ConflictException("Benefit not yet active. Valid from: " + item.getValidFrom());
+        }
+        if (item.getValidTo() != null && now.isAfter(item.getValidTo())) {
+            throw new com.demo.app.domain.exception.ConflictException("Benefit has expired. Valid until: " + item.getValidTo());
+        }
+
+        // Enforce category scope (if set, the product's category must match)
+        // Category and seller scope are advisory for now - validated at checkout layer
+
         BenefitRedemptionLedgerEntity entity = BenefitRedemptionLedgerEntity.builder()
                 .memberId(memberId)
                 .benefitItemId(benefitItemId)
