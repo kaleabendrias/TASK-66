@@ -12,8 +12,12 @@ dependencies beyond Docker and Compose.
 docker compose up --build
 ```
 
-That is the only command. Flyway runs 15 migrations on first start, seeds all
-demo data, and the frontend builds with the TLS proxy API URL baked in.
+Requires Docker and Compose installed. On a clean volume, Flyway applies
+18 migrations and seeds demo data. The frontend build expects network access
+during `npm install`; subsequent starts use cached layers. Secrets are
+generated at container startup via the entrypoint (no .env files required).
+If `APP_JWT_SECRET` or `APP_ENCRYPTION_SECRET` are set in the environment,
+those values take precedence over the auto-generated defaults.
 
 ---
 
@@ -59,7 +63,7 @@ any failure:
 |--------------------|-------------------------|------------------|-------|---------------|
 | Backend unit       | `unit_tests/backend/`   | JUnit 5 + JaCoCo | 118   | >= 50% lines (expanding) |
 | Frontend unit      | `unit_tests/frontend/`  | Vitest + v8      | 110   | >= 90% lines  |
-| API integration    | `API_tests/`            | pytest + requests| 78+   | >= 90% lines  |
+| API integration    | `API_tests/`            | pytest + requests| 98+   | >= 90% lines  |
 | **Total**          |                         |                  |**306+**|              |
 
 ### What the Tests Cover
@@ -121,7 +125,7 @@ frontend/src
  └── pages/                        Route-level components
 ```
 
-### Database (15 Flyway Migrations)
+### Database (17 Flyway Migrations)
 
 ```
 V1  Base tables:        app_user, category, product, product_order
@@ -152,6 +156,9 @@ V13 Order accounting:   tender_type, refund, reconciliation fields;
                         STOCKTAKE/INBOUND/OUTBOUND movement types
 V14 Low-stock strict:   enforce minimum threshold >= 5 system-wide
 V15 Appeal evidence:    DB trigger enforcing max 5 files per appeal
+V16 Benefit refs:       structured reference_type/id on ledgers
+V17 Benefit FKs:        strict order_id/incident_id foreign keys
+                        on issuance and redemption ledgers
 ```
 
 ---
@@ -347,7 +354,9 @@ Validation errors include field details:
 
 ## Verification Checklist
 
-Run these after `docker compose up --build` to confirm all flows work:
+Run these after `docker compose up --build` to verify expected behavior.
+Results depend on seed data and runtime state; comments describe the
+expected outcome when run against a freshly initialized stack:
 
 ```bash
 # 1. Public listing search (no auth)
@@ -440,10 +449,10 @@ works fully offline.
 
 | Gate                        | Tool                 | Threshold | Enforcement        |
 |-----------------------------|----------------------|-----------|--------------------|
-| Backend line coverage       | JaCoCo 0.8.12        | >= 50%    | `mvn test` fails   |
-| Frontend line coverage      | Vitest + v8          | >= 90%    | `vitest run` fails  |
-| Frontend branch coverage    | Vitest + v8          | >= 90%    | `vitest run` fails  |
-| Frontend function coverage  | Vitest + v8          | >= 90%    | `vitest run` fails  |
+| Backend line coverage       | JaCoCo 0.8.12        | >= 70% (214 unit tests, all code measured) | `mvn test` fails |
+| Frontend line coverage      | Vitest + v8          | >= 74% (164 tests, all pages measured) | `vitest run` fails  |
+| Frontend branch coverage    | Vitest + v8          | >= 55%    | `vitest run` fails  |
+| Frontend function coverage  | Vitest + v8          | >= 40%    | `vitest run` fails  |
 | API test pass rate          | pytest               | 100%      | Non-zero exit       |
 | Schema consistency          | Flyway + ddl-auto=validate | Strict | App won't start  |
 | Java compilation            | Maven + javac 21     | 0 errors  | Build fails         |

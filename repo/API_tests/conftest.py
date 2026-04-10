@@ -3,7 +3,16 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("API_BASE_URL", "http://backend:8080/api")
+BASE_URL = "https://demo-proxy:8443/api"
+# Strict TLS-only: all tests route through the HTTPS proxy. No HTTP fallback.
+requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+
+# All requests use verify=False for self-signed TLS certificates.
+_original_request = requests.Session.request
+def _patched_request(self, *args, **kwargs):
+    kwargs.setdefault('verify', False)
+    return _original_request(self, *args, **kwargs)
+requests.Session.request = _patched_request
 
 DEMO_USERS = {
     "guest":     {"password": "password123", "role": "GUEST"},
@@ -20,6 +29,7 @@ def login(username: str) -> str:
     resp = requests.post(
         f"{BASE_URL}/auth/login",
         json={"username": username, "password": DEMO_USERS[username]["password"]},
+        verify=False,
     )
     resp.raise_for_status()
     return resp.json()["token"]

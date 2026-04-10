@@ -53,7 +53,7 @@ public class BenefitController {
                 .orElseThrow(() -> new RuntimeException("User not found: " + username))
                 .getId();
 
-        benefitService.issueBenefit(request.memberId(), request.benefitItemId(), issuedByUserId, request.reference());
+        benefitService.issueBenefit(request.memberId(), request.benefitItemId(), issuedByUserId, request.reference(), request.referenceType(), request.referenceId());
         return ResponseEntity.ok().build();
     }
 
@@ -66,7 +66,7 @@ public class BenefitController {
                 .getId();
 
         MemberProfile profile = memberProfileService.getByUserId(userId);
-        benefitService.redeemBenefit(profile.getId(), request.benefitItemId(), request.reference(), request.categoryId(), request.sellerId());
+        benefitService.redeemBenefit(profile.getId(), request.benefitItemId(), request.reference(), request.categoryId(), request.sellerId(), request.referenceType(), request.referenceId());
         return ResponseEntity.ok().build();
     }
 

@@ -30,6 +30,7 @@ public class RiskEventEntity {
     private String severity;
 
     @Column(name = "details", columnDefinition = "jsonb")
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String details;
 
     @Column(name = "created_at", nullable = false)

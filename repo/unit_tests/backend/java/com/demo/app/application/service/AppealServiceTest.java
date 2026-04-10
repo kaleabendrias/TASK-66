@@ -83,7 +83,7 @@ class AppealServiceTest {
         Appeal appeal = appealService.create(user.getId(), "ORDER", 1L, "Reason");
         appealService.review(appeal.getId(), reviewer.getId(), "APPROVED", "OK");
 
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(IllegalStateException.class,
                 () -> appealService.review(appeal.getId(), reviewer.getId(), "REJECTED", "Changed mind"));
     }
 

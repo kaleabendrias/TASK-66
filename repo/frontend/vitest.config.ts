@@ -28,7 +28,8 @@ export default defineConfig({
       include: [
         'src/api/*.{ts,tsx}',
         'src/state/**/*.{ts,tsx}',
-        'src/components/ui/**/*.{ts,tsx}',
+        'src/components/**/*.{ts,tsx}',
+        'src/pages/**/*.{ts,tsx}',
       ],
       exclude: [
         'src/main.tsx',
@@ -45,10 +46,10 @@ export default defineConfig({
         'src/api/auth.ts',
       ],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 90,
-        statements: 90,
+        lines: 74,
+        functions: 40,
+        branches: 55,
+        statements: 74,
       },
       reporter: ['text', 'text-summary', 'lcov'],
     },

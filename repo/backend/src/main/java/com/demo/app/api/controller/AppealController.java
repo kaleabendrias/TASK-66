@@ -27,12 +27,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AppealController {
 
-    @org.springframework.beans.factory.annotation.Value("${app.encryption.secret}")
-    private String encryptionSecret;
-
     private final AppealService appealService;
     private final UserRepository userRepository;
     private final AppealEvidenceRepository appealEvidenceRepository;
+    private final com.demo.app.infrastructure.encryption.EvidenceEncryptionService evidenceEncryptionService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMINISTRATOR')")
@@ -148,20 +146,8 @@ public class AppealController {
         extension = extension.replaceAll("[^a-zA-Z0-9.]", "");
         String storedPath = "uploads/appeals/" + id + "/" + java.util.UUID.randomUUID() + extension;
         java.io.File dest = new java.io.File(storedPath);
-        dest.getParentFile().mkdirs();
         try {
-            // Encrypt file at rest using AES
-            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
-            byte[] iv = new byte[12];
-            new java.security.SecureRandom().nextBytes(iv);
-            javax.crypto.spec.SecretKeySpec aesKey = new javax.crypto.spec.SecretKeySpec(
-                    java.util.HexFormat.of().parseHex(encryptionSecret.substring(0, 64)), "AES");
-            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, aesKey, new javax.crypto.spec.GCMParameterSpec(128, iv));
-            try (java.io.OutputStream out = new java.io.FileOutputStream(dest)) {
-                out.write(iv); // prepend IV
-                byte[] encrypted = cipher.doFinal(file.getBytes());
-                out.write(encrypted);
-            }
+            evidenceEncryptionService.encryptAndWrite(file.getBytes(), dest);
         } catch (java.io.IOException e) {
             throw new RuntimeException("Failed to store file");
         } catch (Exception e) {

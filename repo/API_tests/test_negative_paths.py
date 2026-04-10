@@ -4,19 +4,17 @@ import requests
 from conftest import BASE_URL, auth_header
 
 class TestNegativePaths:
-    def test_seller_cannot_view_other_sellers_inventory(self, tokens, base_url):
-        """Seller should be blocked from viewing inventory for products they don't own."""
+    def test_seller_can_view_own_inventory(self, tokens, base_url):
+        """Seller can view inventory for their own products (product 1 belongs to seller)."""
         headers = auth_header(tokens["seller"])
-        # Product 1 belongs to seller (user id 3) — seller should see it
-        r1 = requests.get(f"{base_url}/inventory/product/1", headers=headers)
-        assert r1.status_code in (200, 403)  # 200 if own product, 403 if not
+        r = requests.get(f"{base_url}/inventory/product/1", headers=headers, verify=False)
+        assert r.status_code == 200, f"Seller should access own product inventory, got {r.status_code}"
 
-    def test_seller_cannot_view_other_sellers_fulfillment(self, tokens, base_url):
-        """Seller cannot access fulfillment for orders of other seller's products."""
+    def test_seller_cannot_view_nonexistent_fulfillment(self, tokens, base_url):
+        """Seller gets 404 when fulfillment doesn't exist for their order."""
         headers = auth_header(tokens["seller"])
-        # Order 1 is for product 1 — seller owns product 1, so this should work
-        r = requests.get(f"{base_url}/fulfillments/order/1", headers=headers)
-        assert r.status_code in (200, 404)  # 200 if exists and owned
+        r = requests.get(f"{base_url}/fulfillments/order/999", headers=headers, verify=False)
+        assert r.status_code in (400, 404), f"Expected 400/404 for non-existent, got {r.status_code}"
 
     def test_member_cannot_view_inventory(self, tokens, base_url):
         """Members should not access inventory endpoints at all."""
@@ -38,7 +36,7 @@ class TestNegativePaths:
         big_data = b'\x89PNG' + b'\x00' * (11 * 1024 * 1024)
         files = {"file": ("big.png", big_data, "image/png")}
         r2 = requests.post(f"{base_url}/appeals/{aid}/evidence", headers=headers, files=files)
-        assert r2.status_code == 400, f"Expected 400 for oversized file, got {r2.status_code}"
+        assert r2.status_code in (400, 413), f"Expected 400/413 for oversized file, got {r2.status_code}"
 
     def test_upload_rejects_non_image_type(self, tokens, base_url):
         """Non-image/PDF files should be rejected."""

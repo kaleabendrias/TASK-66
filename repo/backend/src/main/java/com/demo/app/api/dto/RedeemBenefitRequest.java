@@ -1,4 +1,4 @@
 package com.demo.app.api.dto;
 
-public record RedeemBenefitRequest(Long benefitItemId, String reference, Long categoryId, Long sellerId) {
+public record RedeemBenefitRequest(Long benefitItemId, String reference, Long categoryId, Long sellerId, String referenceType, Long referenceId) {
 }

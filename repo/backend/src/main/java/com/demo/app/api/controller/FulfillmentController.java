@@ -74,6 +74,16 @@ public class FulfillmentController {
 
     @GetMapping("/{id}/steps")
     public ResponseEntity<List<FulfillmentStepDto>> getSteps(@PathVariable Long id) {
+        // Seller scoping: verify fulfillment relates to seller's product
+        if (isSeller()) {
+            com.demo.app.domain.model.Fulfillment ful = fulfillmentService.getById(id);
+            com.demo.app.domain.model.Order order = orderService.getById(ful.getOrderId());
+            com.demo.app.domain.model.Product product = productService.getById(order.getProductId());
+            if (!product.getSellerId().equals(getCurrentUserId())) {
+                throw new com.demo.app.domain.exception.OwnershipViolationException(
+                        "Sellers can only view fulfillment steps for their own products");
+            }
+        }
         List<FulfillmentStepDto> steps = fulfillmentService.getSteps(id).stream()
                 .map(this::toStepDto)
                 .toList();

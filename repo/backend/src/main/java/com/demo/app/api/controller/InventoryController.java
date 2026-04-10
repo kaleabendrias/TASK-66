@@ -51,6 +51,16 @@ public class InventoryController {
         List<InventoryItemDto> items = inventoryService.getLowStockItems().stream()
                 .map(this::toDto)
                 .toList();
+        // Seller scoping: only show low-stock for seller's own products
+        if (isSeller()) {
+            Long currentUserId = getCurrentUserId();
+            items = items.stream().filter(i -> {
+                try {
+                    com.demo.app.domain.model.Product p = productService.getById(i.productId());
+                    return p.getSellerId().equals(currentUserId);
+                } catch (Exception e) { return false; }
+            }).toList();
+        }
         return ResponseEntity.ok(items);
     }
 

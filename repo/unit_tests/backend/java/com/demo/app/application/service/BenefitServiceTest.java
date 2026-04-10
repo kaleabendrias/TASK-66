@@ -47,12 +47,22 @@ class BenefitServiceTest {
     @Autowired
     private BenefitIssuanceLedgerRepository benefitIssuanceLedgerRepository;
 
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
     private MemberTierEntity tier;
     private BenefitPackageEntity pkg;
     private BenefitItemEntity discountItem;
     private BenefitItemEntity shippingItem;
     private UserEntity user;
     private MemberProfileEntity profile;
+    private OrderEntity testOrder;
 
     @BeforeEach
     void setUp() {
@@ -70,6 +80,7 @@ class BenefitServiceTest {
                 .packageId(pkg.getId())
                 .benefitType("DISCOUNT")
                 .benefitValue("15")
+                .scope("ORDER")
                 .createdAt(LocalDateTime.now())
                 .build());
 
@@ -77,11 +88,22 @@ class BenefitServiceTest {
                 .packageId(pkg.getId())
                 .benefitType("FREE_SHIPPING")
                 .benefitValue("true")
+                .scope("ORDER")
                 .createdAt(LocalDateTime.now())
                 .build());
 
         user = userRepository.save(TestFixtures.user("benefituser", Role.MEMBER));
         profile = memberProfileRepository.save(TestFixtures.profile(user.getId(), tier.getId(), 6000));
+
+        CategoryEntity cat = categoryRepository.save(TestFixtures.category("TestCat"));
+        ProductEntity prod = productRepository.save(TestFixtures.product("TestProd", new java.math.BigDecimal("10"), cat, user));
+        testOrder = orderRepository.save(OrderEntity.builder()
+                .buyer(user).product(prod).quantity(1)
+                .totalPrice(new java.math.BigDecimal("10"))
+                .status(com.demo.app.domain.enums.OrderStatus.PLACED)
+                .tenderType("INTERNAL_CREDIT")
+                .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                .build());
     }
 
     @Test
@@ -117,7 +139,7 @@ class BenefitServiceTest {
     @DisplayName("issueBenefit creates a ledger entry")
     void testIssueBenefit_createsLedgerEntry() {
         BenefitIssuanceLedgerEntity entry = benefitService.issueBenefit(
-                profile.getId(), discountItem.getId(), user.getId(), "test-issuance");
+                profile.getId(), discountItem.getId(), user.getId(), "test-issuance", "ORDER", testOrder.getId());
 
         assertNotNull(entry.getId());
         assertEquals(profile.getId(), entry.getMemberId());
@@ -131,7 +153,7 @@ class BenefitServiceTest {
     @DisplayName("redeemBenefit creates a redemption ledger entry")
     void testRedeemBenefit_createsRedemptionEntry() {
         BenefitRedemptionLedgerEntity entry = benefitService.redeemBenefit(
-                profile.getId(), discountItem.getId(), "test-redemption", null, null);
+                profile.getId(), discountItem.getId(), "test-redemption", null, null, "ORDER", testOrder.getId());
 
         assertNotNull(entry.getId());
         assertEquals(profile.getId(), entry.getMemberId());
@@ -143,14 +165,14 @@ class BenefitServiceTest {
     @Test
     @DisplayName("issueBenefit creates immutable ledger entries that persist")
     void testIssueBenefit_immutableLedger() {
-        benefitService.issueBenefit(profile.getId(), discountItem.getId(), user.getId(), "ref-1");
-        benefitService.issueBenefit(profile.getId(), shippingItem.getId(), user.getId(), "ref-2");
+        benefitService.issueBenefit(profile.getId(), discountItem.getId(), user.getId(), "ref-1", "ORDER", testOrder.getId());
+        benefitService.issueBenefit(profile.getId(), shippingItem.getId(), user.getId(), "ref-2", "ORDER", testOrder.getId());
 
         List<BenefitIssuanceLedgerEntity> entries = benefitIssuanceLedgerRepository.findByMemberId(profile.getId());
         assertEquals(2, entries.size());
 
         // Issue another one; count should increase, not replace
-        benefitService.issueBenefit(profile.getId(), discountItem.getId(), user.getId(), "ref-3");
+        benefitService.issueBenefit(profile.getId(), discountItem.getId(), user.getId(), "ref-3", "ORDER", testOrder.getId());
 
         entries = benefitIssuanceLedgerRepository.findByMemberId(profile.getId());
         assertEquals(3, entries.size());
@@ -164,6 +186,7 @@ class BenefitServiceTest {
                 .packageId(pkg.getId())
                 .benefitType("DISCOUNT")
                 .benefitValue("25")
+                .scope("ORDER")
                 .createdAt(LocalDateTime.now())
                 .build());
 

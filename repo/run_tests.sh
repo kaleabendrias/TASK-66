@@ -71,7 +71,7 @@ done
 log "Running API integration tests..."
 if docker run --rm \
   --network repo_default \
-  -e API_BASE_URL=http://demo-backend:8080/api \
+  -e API_BASE_URL=https://demo-proxy:8443/api \
   -v "$(pwd)/API_tests:/tests" \
   -w /tests \
   python:3.12-slim \

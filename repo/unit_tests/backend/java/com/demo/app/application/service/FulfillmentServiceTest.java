@@ -79,6 +79,7 @@ class FulfillmentServiceTest {
                 .quantity(1)
                 .totalPrice(new BigDecimal("699.99"))
                 .status(OrderStatus.CONFIRMED)
+                .tenderType("INTERNAL_CREDIT")
                 .createdAt(now)
                 .updatedAt(now)
                 .build());

@@ -4,8 +4,16 @@ import warnings
 import sys
 
 warnings.filterwarnings("ignore")
-BASE = "http://demo-backend:8080/api"
-PROXY = "https://demo-proxy:8443/api"
+BASE = "https://demo-proxy:8443/api"
+PROXY = BASE  # Strict TLS-only: no HTTP fallback
+
+# Patch requests to skip TLS verification for self-signed certs
+_orig_get = requests.get
+_orig_post = requests.post
+_orig_patch = requests.patch
+requests.get = lambda *a, **kw: _orig_get(*a, verify=kw.pop('verify', False), **kw)
+requests.post = lambda *a, **kw: _orig_post(*a, verify=kw.pop('verify', False), **kw)
+requests.patch = lambda *a, **kw: _orig_patch(*a, verify=kw.pop('verify', False), **kw)
 ok = True
 
 def check(name, condition, detail=""):

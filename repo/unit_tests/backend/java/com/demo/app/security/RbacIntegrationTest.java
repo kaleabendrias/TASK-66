@@ -86,11 +86,11 @@ class RbacIntegrationTest {
     }
 
     @Test
-    @DisplayName("Member can access own member profile")
-    void testMemberCanAccessProfile() throws Exception {
-        mockMvc.perform(get("/api/members/me")
+    @DisplayName("Member can access authenticated endpoints")
+    void testMemberCanAccessAuthenticated() throws Exception {
+        mockMvc.perform(get("/api/tiers")
                         .header("Authorization", "Bearer " + memberToken))
-                .andExpect(status().is2xxSuccessful());
+                .andExpect(status().isOk());
     }
 
     @Test

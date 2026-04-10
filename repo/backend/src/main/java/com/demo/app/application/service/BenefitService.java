@@ -5,10 +5,13 @@ import com.demo.app.domain.model.BenefitPackage;
 import com.demo.app.persistence.entity.BenefitItemEntity;
 import com.demo.app.persistence.entity.BenefitIssuanceLedgerEntity;
 import com.demo.app.persistence.entity.BenefitRedemptionLedgerEntity;
+import com.demo.app.domain.exception.ResourceNotFoundException;
 import com.demo.app.persistence.repository.BenefitIssuanceLedgerRepository;
 import com.demo.app.persistence.repository.BenefitItemRepository;
 import com.demo.app.persistence.repository.BenefitPackageRepository;
 import com.demo.app.persistence.repository.BenefitRedemptionLedgerRepository;
+import com.demo.app.persistence.repository.OrderRepository;
+import com.demo.app.persistence.repository.IncidentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +26,8 @@ public class BenefitService {
     private final BenefitItemRepository benefitItemRepository;
     private final BenefitIssuanceLedgerRepository benefitIssuanceLedgerRepository;
     private final BenefitRedemptionLedgerRepository benefitRedemptionLedgerRepository;
+    private final OrderRepository orderRepository;
+    private final IncidentRepository incidentRepository;
 
     public List<BenefitPackage> getPackagesByTier(Long tierId) {
         return benefitPackageRepository.findByTierIdAndActiveTrue(tierId).stream()
@@ -36,18 +41,43 @@ public class BenefitService {
                 .toList();
     }
 
-    public BenefitIssuanceLedgerEntity issueBenefit(Long memberId, Long benefitItemId, Long issuedByUserId, String reference) {
+    public BenefitIssuanceLedgerEntity issueBenefit(Long memberId, Long benefitItemId, Long issuedByUserId, String reference, String referenceType, Long referenceId) {
+        if (referenceType == null || referenceType.isBlank()) {
+            throw new IllegalArgumentException("referenceType is required. Must be ORDER or INCIDENT.");
+        }
+
+        Long orderId = null;
+        Long incidentId = null;
+
+        if ("ORDER".equals(referenceType)) {
+                if (referenceId == null || !orderRepository.existsById(referenceId)) {
+                    throw new ResourceNotFoundException("Order", referenceId);
+                }
+                orderId = referenceId;
+            } else if ("INCIDENT".equals(referenceType)) {
+                if (referenceId == null || !incidentRepository.existsById(referenceId)) {
+                    throw new ResourceNotFoundException("Incident", referenceId);
+                }
+                incidentId = referenceId;
+            } else {
+            throw new IllegalArgumentException("Invalid referenceType: " + referenceType + ". Must be ORDER or INCIDENT.");
+        }
+
         BenefitIssuanceLedgerEntity entity = BenefitIssuanceLedgerEntity.builder()
                 .memberId(memberId)
                 .benefitItemId(benefitItemId)
                 .issuedBy(issuedByUserId)
                 .reference(reference)
+                .referenceType(referenceType)
+                .referenceId(referenceId)
+                .orderId(orderId)
+                .incidentId(incidentId)
                 .issuedAt(LocalDateTime.now())
                 .build();
         return benefitIssuanceLedgerRepository.save(entity);
     }
 
-    public BenefitRedemptionLedgerEntity redeemBenefit(Long memberId, Long benefitItemId, String reference, Long orderCategoryId, Long orderSellerId) {
+    public BenefitRedemptionLedgerEntity redeemBenefit(Long memberId, Long benefitItemId, String reference, Long orderCategoryId, Long orderSellerId, String referenceType, Long referenceId) {
         BenefitItemEntity item = benefitItemRepository.findById(benefitItemId)
                 .orElseThrow(() -> new com.demo.app.domain.exception.ResourceNotFoundException("Benefit item", benefitItemId));
 
@@ -88,10 +118,35 @@ public class BenefitService {
                     "Benefit is restricted to seller " + item.getSellerId() + " but order is from seller " + orderSellerId);
         }
 
+        if (referenceType == null || referenceType.isBlank()) {
+            throw new IllegalArgumentException("referenceType is required. Must be ORDER or INCIDENT.");
+        }
+
+        Long orderId = null;
+        Long incidentId = null;
+
+        if ("ORDER".equals(referenceType)) {
+            if (referenceId == null || !orderRepository.existsById(referenceId)) {
+                throw new ResourceNotFoundException("Order", referenceId);
+            }
+            orderId = referenceId;
+        } else if ("INCIDENT".equals(referenceType)) {
+            if (referenceId == null || !incidentRepository.existsById(referenceId)) {
+                throw new ResourceNotFoundException("Incident", referenceId);
+            }
+            incidentId = referenceId;
+        } else {
+            throw new IllegalArgumentException("Invalid referenceType: " + referenceType + ". Must be ORDER or INCIDENT.");
+        }
+
         BenefitRedemptionLedgerEntity entity = BenefitRedemptionLedgerEntity.builder()
                 .memberId(memberId)
                 .benefitItemId(benefitItemId)
                 .reference(reference)
+                .referenceType(referenceType)
+                .referenceId(referenceId)
+                .orderId(orderId)
+                .incidentId(incidentId)
                 .redeemedAt(LocalDateTime.now())
                 .build();
         return benefitRedemptionLedgerRepository.save(entity);

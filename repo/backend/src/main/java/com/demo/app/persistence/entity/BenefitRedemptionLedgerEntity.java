@@ -29,6 +29,18 @@ public class BenefitRedemptionLedgerEntity {
     @Column(name = "reference")
     private String reference;
 
+    @Column(name = "reference_type", length = 30)
+    private String referenceType;
+
+    @Column(name = "reference_id")
+    private Long referenceId;
+
+    @Column(name = "order_id")
+    private Long orderId;
+
+    @Column(name = "incident_id")
+    private Long incidentId;
+
     @Column(name = "redeemed_at", nullable = false)
     private LocalDateTime redeemedAt;
 }

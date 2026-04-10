@@ -14,18 +14,19 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/risk")
-@PreAuthorize("hasRole('ADMINISTRATOR')")
 @RequiredArgsConstructor
 public class RiskAnalyticsController {
 
     private final RiskAnalyticsService riskAnalyticsService;
 
     @PostMapping("/compute/{userId}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<RiskScoreEntity> computeScore(@PathVariable Long userId) {
         return ResponseEntity.ok(riskAnalyticsService.computeScore(userId));
     }
 
     @GetMapping("/score/{userId}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<?> getScore(@PathVariable Long userId) {
         RiskScoreEntity score = riskAnalyticsService.getScore(userId);
         if (score == null) {
@@ -35,12 +36,14 @@ public class RiskAnalyticsController {
     }
 
     @GetMapping("/high-risk")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<List<RiskScoreEntity>> getHighRiskUsers(
             @RequestParam(defaultValue = "50.0") double threshold) {
         return ResponseEntity.ok(riskAnalyticsService.getHighRiskUsers(threshold));
     }
 
     @GetMapping("/events/{userId}")
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public ResponseEntity<List<RiskEventEntity>> getEvents(@PathVariable Long userId) {
         return ResponseEntity.ok(riskAnalyticsService.getEventsByUser(userId));
     }
