@@ -5,6 +5,8 @@ import com.demo.app.api.dto.CreateFulfillmentRequest;
 import com.demo.app.api.dto.FulfillmentDto;
 import com.demo.app.api.dto.FulfillmentStepDto;
 import com.demo.app.application.service.FulfillmentService;
+import com.demo.app.application.service.OrderService;
+import com.demo.app.application.service.ProductService;
 import com.demo.app.domain.model.Fulfillment;
 import com.demo.app.domain.model.FulfillmentStep;
 import com.demo.app.domain.exception.OwnershipViolationException;
@@ -25,6 +27,8 @@ import java.util.List;
 public class FulfillmentController {
 
     private final FulfillmentService fulfillmentService;
+    private final OrderService orderService;
+    private final ProductService productService;
     private final UserRepository userRepository;
 
     @PostMapping
@@ -58,6 +62,13 @@ public class FulfillmentController {
 
     @GetMapping("/order/{orderId}")
     public ResponseEntity<FulfillmentDto> getByOrder(@PathVariable Long orderId) {
+        if (isSeller()) {
+            com.demo.app.domain.model.Order order = orderService.getById(orderId);
+            com.demo.app.domain.model.Product product = productService.getById(order.getProductId());
+            if (!product.getSellerId().equals(getCurrentUserId())) {
+                throw new OwnershipViolationException("Sellers can only access fulfillments for their own products");
+            }
+        }
         return ResponseEntity.ok(toDto(fulfillmentService.getByOrder(orderId)));
     }
 
@@ -67,6 +78,20 @@ public class FulfillmentController {
                 .map(this::toStepDto)
                 .toList();
         return ResponseEntity.ok(steps);
+    }
+
+    private boolean isSeller() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SELLER"))
+                && auth.getAuthorities().stream().noneMatch(a ->
+                        a.getAuthority().equals("ROLE_WAREHOUSE_STAFF") || a.getAuthority().equals("ROLE_ADMINISTRATOR"));
+    }
+
+    private Long getCurrentUserId() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username))
+                .getId();
     }
 
     private boolean isAdmin() {

@@ -27,6 +27,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AppealController {
 
+    @org.springframework.beans.factory.annotation.Value("${app.encryption.secret}")
+    private String encryptionSecret;
+
     private final AppealService appealService;
     private final UserRepository userRepository;
     private final AppealEvidenceRepository appealEvidenceRepository;
@@ -147,9 +150,22 @@ public class AppealController {
         java.io.File dest = new java.io.File(storedPath);
         dest.getParentFile().mkdirs();
         try {
-            file.transferTo(dest);
+            // Encrypt file at rest using AES
+            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding");
+            byte[] iv = new byte[12];
+            new java.security.SecureRandom().nextBytes(iv);
+            javax.crypto.spec.SecretKeySpec aesKey = new javax.crypto.spec.SecretKeySpec(
+                    java.util.HexFormat.of().parseHex(encryptionSecret.substring(0, 64)), "AES");
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, aesKey, new javax.crypto.spec.GCMParameterSpec(128, iv));
+            try (java.io.OutputStream out = new java.io.FileOutputStream(dest)) {
+                out.write(iv); // prepend IV
+                byte[] encrypted = cipher.doFinal(file.getBytes());
+                out.write(encrypted);
+            }
         } catch (java.io.IOException e) {
             throw new RuntimeException("Failed to store file");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to encrypt file", e);
         }
 
         AppealEvidenceEntity evidence = AppealEvidenceEntity.builder()

@@ -5,6 +5,7 @@ import com.demo.app.api.dto.InventoryItemDto;
 import com.demo.app.api.dto.OutboundRequest;
 import com.demo.app.api.dto.StocktakeRequest;
 import com.demo.app.application.service.InventoryService;
+import com.demo.app.application.service.ProductService;
 import com.demo.app.domain.model.InventoryItem;
 import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.persistence.repository.UserRepository;
@@ -24,11 +25,21 @@ import java.util.Map;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final ProductService productService;
     private final UserRepository userRepository;
     private final WarehouseRepository warehouseRepository;
 
     @GetMapping("/product/{productId}")
     public ResponseEntity<List<InventoryItemDto>> getByProduct(@PathVariable Long productId) {
+        // Seller scoping: sellers can only see inventory for their own products
+        if (isSeller()) {
+            Long currentUserId = getCurrentUserId();
+            com.demo.app.domain.model.Product product = productService.getById(productId);
+            if (!product.getSellerId().equals(currentUserId)) {
+                throw new com.demo.app.domain.exception.OwnershipViolationException(
+                        "Sellers can only view inventory for their own products");
+            }
+        }
         List<InventoryItemDto> items = inventoryService.getByProduct(productId).stream()
                 .map(this::toDto)
                 .toList();
@@ -93,6 +104,13 @@ public class InventoryController {
                 current.getId(), delta, "STOCKTAKE",
                 request.referenceDocument(), operatorId, "Stocktake: counted=" + request.countedQuantity());
         return ResponseEntity.ok(toDto(item));
+    }
+
+    private boolean isSeller() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_SELLER"))
+                && auth.getAuthorities().stream().noneMatch(a ->
+                        a.getAuthority().equals("ROLE_WAREHOUSE_STAFF") || a.getAuthority().equals("ROLE_ADMINISTRATOR"));
     }
 
     private Long getCurrentUserId() {

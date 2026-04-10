@@ -141,15 +141,8 @@
                         <exclude>com/demo/app/persistence/repository/**</exclude>
                         <exclude>com/demo/app/persistence/converter/**</exclude>
                         <!-- Spring config & wiring (covered by integration tests) -->
-                        <exclude>com/demo/app/api/controller/**</exclude>
                         <exclude>com/demo/app/infrastructure/config/**</exclude>
                         <exclude>com/demo/app/infrastructure/scheduler/**</exclude>
-                        <!-- SecurityConfig, JwtAuthFilter, CustomUserDetailsService, AuditAspect
-                             are now covered by API integration tests -->
-                        <exclude>com/demo/app/infrastructure/audit/Audited.class</exclude>
-                        <exclude>com/demo/app/infrastructure/encryption/EncryptedStringConverter.class</exclude>
-                        <exclude>com/demo/app/infrastructure/encryption/EncryptedStringConverterInitializer.class</exclude>
-                        <exclude>com/demo/app/DemoApplication.class</exclude>
                     </excludes>
                 </configuration>
                 <executions>
@@ -176,7 +169,7 @@
                                             <value>COVEREDRATIO</value>
                                             <!-- Exclusions reduced; threshold reflects actual measured coverage.
                                                  Raise toward 0.90 as more service tests are added. -->
-                                            <minimum>0.50</minimum>
+                                            <minimum>0.55</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
