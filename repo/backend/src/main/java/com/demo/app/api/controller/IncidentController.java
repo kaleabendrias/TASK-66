@@ -58,8 +58,8 @@ public class IncidentController {
         Long reporterId = getCurrentUserId();
         Incident incident = incidentService.create(
                 reporterId,
-                request.incidentType(),
-                request.severity(),
+                request.incidentType().name(),
+                request.severity().name(),
                 request.title(),
                 request.description(),
                 request.address(),

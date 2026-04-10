@@ -14,8 +14,8 @@ import {
   getMyProfile,
   getProfileByUser,
   updatePhone,
-  adjustPoints,
-  getPointsHistory,
+  adjustSpend,
+  getSpendHistory,
   getPackagesByTier,
   getItemsByPackage,
   redeemBenefit,
@@ -51,19 +51,19 @@ describe('members API', () => {
     expect(result.phoneMasked).toBe('***1234');
   });
 
-  it('adjustPoints calls POST /members/me/points', async () => {
-    (client.post as any).mockResolvedValue({ data: { points: 150 } });
-    await adjustPoints(50, 'bonus');
-    expect(client.post).toHaveBeenCalledWith('/members/me/points', {
+  it('adjustSpend calls POST /members/me/spend', async () => {
+    (client.post as any).mockResolvedValue({ data: { totalSpend: 150 } });
+    await adjustSpend(50, 'bonus');
+    expect(client.post).toHaveBeenCalledWith('/members/me/spend', {
       amount: 50,
       reference: 'bonus',
     });
   });
 
-  it('getPointsHistory calls GET /members/me/points/history', async () => {
+  it('getSpendHistory calls GET /members/me/spend/history', async () => {
     (client.get as any).mockResolvedValue({ data: [] });
-    const result = await getPointsHistory();
-    expect(client.get).toHaveBeenCalledWith('/members/me/points/history');
+    const result = await getSpendHistory();
+    expect(client.get).toHaveBeenCalledWith('/members/me/spend/history');
     expect(result).toEqual([]);
   });
 

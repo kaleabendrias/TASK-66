@@ -8,7 +8,7 @@ def _create_incident(token, base_url):
     resp = requests.post(
         f"{base_url}/incidents",
         json={
-            "incidentType": "FRAUD",
+            "incidentType": "ORDER_ISSUE",
             "severity": "HIGH",
             "title": "Test incident",
             "description": "Created by integration test",

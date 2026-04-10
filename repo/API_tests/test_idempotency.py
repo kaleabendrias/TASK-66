@@ -31,8 +31,8 @@ class TestIdempotency:
         resp = requests.post(
             f"{base_url}/incidents",
             json={
-                "incidentType": "FRAUD",
-                "severity": "MEDIUM",
+                "incidentType": "ORDER_ISSUE",
+                "severity": "NORMAL",
                 "title": "Idempotency test incident",
                 "description": "Testing acknowledge idempotency",
             },

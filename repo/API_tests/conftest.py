@@ -66,5 +66,6 @@ def guest_token():
 
 @pytest.fixture(scope="session")
 def tokens():
-    """Return dict of all role tokens."""
-    return {role: login(role) for role in DEMO_USERS}
+    """Return dict of operational role tokens (excludes guest which may be locked out)."""
+    operational_users = {k: v for k, v in DEMO_USERS.items() if k != "guest"}
+    return {role: login(role) for role in operational_users}

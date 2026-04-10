@@ -47,7 +47,7 @@ public class BenefitService {
         return benefitIssuanceLedgerRepository.save(entity);
     }
 
-    public BenefitRedemptionLedgerEntity redeemBenefit(Long memberId, Long benefitItemId, String reference) {
+    public BenefitRedemptionLedgerEntity redeemBenefit(Long memberId, Long benefitItemId, String reference, Long orderCategoryId, Long orderSellerId) {
         BenefitItemEntity item = benefitItemRepository.findById(benefitItemId)
                 .orElseThrow(() -> new com.demo.app.domain.exception.ResourceNotFoundException("Benefit item", benefitItemId));
 
@@ -74,8 +74,19 @@ public class BenefitService {
             throw new com.demo.app.domain.exception.ConflictException("Benefit has expired. Valid until: " + item.getValidTo());
         }
 
-        // Enforce category scope (if set, the product's category must match)
-        // Category and seller scope are advisory for now - validated at checkout layer
+        // Enforce category scope
+        if (item.getCategoryId() != null && orderCategoryId != null
+                && !item.getCategoryId().equals(orderCategoryId)) {
+            throw new com.demo.app.domain.exception.ConflictException(
+                    "Benefit is restricted to category " + item.getCategoryId() + " but order is category " + orderCategoryId);
+        }
+
+        // Enforce seller scope
+        if (item.getSellerId() != null && orderSellerId != null
+                && !item.getSellerId().equals(orderSellerId)) {
+            throw new com.demo.app.domain.exception.ConflictException(
+                    "Benefit is restricted to seller " + item.getSellerId() + " but order is from seller " + orderSellerId);
+        }
 
         BenefitRedemptionLedgerEntity entity = BenefitRedemptionLedgerEntity.builder()
                 .memberId(memberId)

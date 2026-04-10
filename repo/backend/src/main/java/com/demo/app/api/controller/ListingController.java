@@ -65,6 +65,15 @@ public class ListingController {
     @PostMapping
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
     public ResponseEntity<ListingDto> create(@RequestBody CreateListingRequest request) {
+        // Verify seller owns the product
+        if (!isPrivileged()) {
+            Long currentUserId = getCurrentUserId();
+            Product product = productService.getById(request.productId());
+            if (!product.getSellerId().equals(currentUserId)) {
+                throw new OwnershipViolationException("You can only create listings for your own products");
+            }
+        }
+
         Listing listing = Listing.builder()
                 .productId(request.productId())
                 .title(request.title())

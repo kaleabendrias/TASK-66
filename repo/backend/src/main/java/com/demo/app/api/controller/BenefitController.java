@@ -58,6 +58,7 @@ public class BenefitController {
     }
 
     @PostMapping("/redeem")
+    @PreAuthorize("hasAnyRole('BUYER', 'SELLER', 'MODERATOR', 'ADMINISTRATOR')")
     public ResponseEntity<Void> redeemBenefit(@RequestBody RedeemBenefitRequest request) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long userId = userRepository.findByUsername(username)
@@ -65,7 +66,7 @@ public class BenefitController {
                 .getId();
 
         MemberProfile profile = memberProfileService.getByUserId(userId);
-        benefitService.redeemBenefit(profile.getId(), request.benefitItemId(), request.reference());
+        benefitService.redeemBenefit(profile.getId(), request.benefitItemId(), request.reference(), request.categoryId(), request.sellerId());
         return ResponseEntity.ok().build();
     }
 

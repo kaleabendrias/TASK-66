@@ -63,26 +63,21 @@ public class RiskAnalyticsService {
         double score = 0.0;
         Map<String, Object> factors = new HashMap<>();
 
-        // Seller-operational risk: incidents filed against seller's products
-        long incidentsReportedAgainst = incidentRepository.findByReporterId(userId).size();
-        // For seller-specific: count incidents where description mentions the seller
-        // More accurate: count all incidents in 30-day window
-        List<com.demo.app.persistence.entity.IncidentEntity> allRecentIncidents =
-            incidentRepository.findAll().stream()
+        // Per-user scoped: only incidents reported by this user
+        List<com.demo.app.persistence.entity.IncidentEntity> userRecentIncidents =
+            incidentRepository.findByReporterId(userId).stream()
                 .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
                 .toList();
 
         // Staff-flagged exceptions (escalated incidents)
-        long escalatedIncidents = allRecentIncidents.stream()
+        long escalatedIncidents = userRecentIncidents.stream()
                 .filter(i -> i.getEscalationLevel() > 0)
                 .count();
         factors.put("escalated_incidents_30d", escalatedIncidents);
         score += escalatedIncidents * 15.0;
 
-        // Incidents reported by this user (seller filing reports = neutral)
-        long sellerReportedIncidents = incidentRepository.findByReporterId(userId).stream()
-                .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
-                .count();
+        // Incidents reported by this user
+        long sellerReportedIncidents = userRecentIncidents.size();
         factors.put("seller_reported_incidents_30d", sellerReportedIncidents);
 
         // Rejected appeals (staff exceptions denied)

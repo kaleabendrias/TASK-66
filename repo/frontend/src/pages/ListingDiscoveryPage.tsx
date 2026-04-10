@@ -36,6 +36,8 @@ const ListingDiscoveryPage: React.FC = () => {
     minSqft: '',
     maxSqft: '',
     layout: '',
+    availableAfter: '',
+    availableBefore: '',
   });
   const [sortBy, setSortBy] = useState('newest');
 
@@ -85,6 +87,8 @@ const ListingDiscoveryPage: React.FC = () => {
       if (filters.minSqft) params.minSqft = parseInt(filters.minSqft);
       if (filters.maxSqft) params.maxSqft = parseInt(filters.maxSqft);
       if (filters.layout) params.layout = filters.layout;
+      if (filters.availableAfter) params.availableAfter = filters.availableAfter;
+      if (filters.availableBefore) params.availableBefore = filters.availableBefore;
       const hasParams = Object.keys(params).length > 0;
       const data = hasParams ? await searchListings(params) : await getListings();
       setListings(data);
@@ -294,6 +298,16 @@ const ListingDiscoveryPage: React.FC = () => {
                     <option value="gallery">Gallery</option>
                     <option value="storefront">Storefront</option>
                   </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Available After</label>
+                  <input type="date" className="form-input" value={filters.availableAfter}
+                    onChange={(e) => setFilters({ ...filters, availableAfter: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Available Before</label>
+                  <input type="date" className="form-input" value={filters.availableBefore}
+                    onChange={(e) => setFilters({ ...filters, availableBefore: e.target.value })} />
                 </div>
                 <div className="form-group">
                   <label className="flex gap-sm">

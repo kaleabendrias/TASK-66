@@ -12,7 +12,7 @@ dependencies beyond Docker and Compose.
 docker compose up --build
 ```
 
-That is the only command. Flyway runs 11 migrations on first start, seeds all
+That is the only command. Flyway runs 12 migrations on first start, seeds all
 demo data, and the frontend builds with the TLS proxy API URL baked in.
 
 ---
@@ -121,7 +121,7 @@ frontend/src
  └── pages/                        Route-level components
 ```
 
-### Database (11 Flyway Migrations)
+### Database (12 Flyway Migrations)
 
 ```
 V1  Base tables:        app_user, category, product, product_order
@@ -146,6 +146,8 @@ V10 Tier correction:    strict 0-499, 500-1499, 1500+ spend bands,
                         listing price/sqft/layout, incident address fields
 V11 Heritage crafts:    marketplace seed data (pottery, textiles,
                         woodwork, metalwork)
+V12 Benefit scoping:    benefit category_id, seller_id, valid_from/to;
+                        incident closure_code; listing weekly_views
 ```
 
 ---
@@ -460,7 +462,7 @@ works fully offline.
 │       ├── java/com/demo/app/         178 Java source files
 │       └── resources/
 │           ├── application.yml         All config (no .env)
-│           └── db/migration/           11 Flyway SQL migrations
+│           └── db/migration/           12 Flyway SQL migrations
 ├── frontend/
 │   ├── Dockerfile                     Multi-stage Node 20
 │   ├── package.json                   React, Axios, Zustand, Vitest

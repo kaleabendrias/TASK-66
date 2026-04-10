@@ -37,10 +37,10 @@ describe('listings API', () => {
     expect(result.slug).toBe('test');
   });
 
-  it('searchListings calls GET with query', async () => {
+  it('searchListings calls GET with params object', async () => {
     (client.get as any).mockResolvedValue({ data: [] });
-    await searchListings('widget');
-    expect(client.get).toHaveBeenCalledWith('/listings/search?q=widget');
+    await searchListings({ q: 'widget', minPrice: 10 });
+    expect(client.get).toHaveBeenCalledWith('/listings/search', { params: { q: 'widget', minPrice: 10 } });
   });
 
   it('createListing calls POST /listings', async () => {
