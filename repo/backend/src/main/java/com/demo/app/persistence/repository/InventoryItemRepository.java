@@ -12,6 +12,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItemEnti
     List<InventoryItemEntity> findByWarehouseId(Long warehouseId);
     Optional<InventoryItemEntity> findByProductIdAndWarehouseId(Long productId, Long warehouseId);
 
-    @Query("SELECT i FROM InventoryItemEntity i WHERE (i.quantityOnHand - i.quantityReserved) < i.lowStockThreshold")
+    @Query("SELECT i FROM InventoryItemEntity i WHERE (i.quantityOnHand - i.quantityReserved) < CASE WHEN i.lowStockThreshold > 5 THEN i.lowStockThreshold ELSE 5 END")
     List<InventoryItemEntity> findLowStock();
 }

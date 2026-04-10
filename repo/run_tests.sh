@@ -16,7 +16,7 @@ fail() { echo -e "${BOLD}${RED}  FAIL: $1${RESET}"; FAIL=1; }
 # Generate secrets at runtime if not already set (no .env, no hardcoded values)
 export APP_JWT_SECRET="${APP_JWT_SECRET:-$(openssl rand -hex 32)}"
 export APP_ENCRYPTION_SECRET="${APP_ENCRYPTION_SECRET:-$(openssl rand -hex 32)}"
-log "Runtime secrets generated (APP_JWT_SECRET=${APP_JWT_SECRET:0:8}..., APP_ENCRYPTION_SECRET=${APP_ENCRYPTION_SECRET:0:8}...)"
+log "Runtime secrets generated and exported (no .env file used)"
 
 # ─────────────────────────────────────────────
 # 1. Backend unit tests (Maven + JaCoCo, 90% threshold)

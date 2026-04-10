@@ -112,6 +112,25 @@ public class RiskAnalyticsService {
         factors.put("high_severity_events_30d", highSeverityEvents);
         score += highSeverityEvents * 12.0;
 
+        // Anomaly categories: specific operational risk signals
+        long missedPickupCheckins = recentEvents.stream()
+                .filter(e -> "MISSED_PICKUP_CHECKIN".equals(e.getEventType()))
+                .count();
+        factors.put("missed_pickup_checkins_30d", missedPickupCheckins);
+        score += missedPickupCheckins * 10.0;
+
+        long buddyPunchingEvents = recentEvents.stream()
+                .filter(e -> "BUDDY_PUNCHING".equals(e.getEventType()))
+                .count();
+        factors.put("buddy_punching_30d", buddyPunchingEvents);
+        score += buddyPunchingEvents * 20.0;
+
+        long misidentificationEvents = recentEvents.stream()
+                .filter(e -> "MISIDENTIFICATION".equals(e.getEventType()))
+                .count();
+        factors.put("misidentification_30d", misidentificationEvents);
+        score += misidentificationEvents * 15.0;
+
         score = Math.min(score, 100.0);
 
         String factorsJson;

@@ -131,7 +131,7 @@ class BenefitServiceTest {
     @DisplayName("redeemBenefit creates a redemption ledger entry")
     void testRedeemBenefit_createsRedemptionEntry() {
         BenefitRedemptionLedgerEntity entry = benefitService.redeemBenefit(
-                profile.getId(), discountItem.getId(), "test-redemption");
+                profile.getId(), discountItem.getId(), "test-redemption", null, null);
 
         assertNotNull(entry.getId());
         assertEquals(profile.getId(), entry.getMemberId());

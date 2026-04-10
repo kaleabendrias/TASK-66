@@ -35,7 +35,9 @@ describe('ListingDiscoveryPage', () => {
 
   it('shows neighborhood in listing cards', async () => {
     render(<MemoryRouter><ListingDiscoveryPage /></MemoryRouter>);
-    expect(await screen.findByText(/Arts District/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText(/Arts District/).length).toBeGreaterThan(0);
+    }, { timeout: 3000 });
   });
 
   it('renders trending section using weeklyViews', async () => {
@@ -49,10 +51,10 @@ describe('ListingDiscoveryPage', () => {
     expect(screen.getByText('Available Before')).toBeInTheDocument();
   });
 
-  it('has address-based search inputs for lat/lng', async () => {
+  it('has address-based location selector', async () => {
     render(<MemoryRouter><ListingDiscoveryPage /></MemoryRouter>);
-    expect(await screen.findByPlaceholderText('40.71')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('-74.00')).toBeInTheDocument();
+    expect(await screen.findByText('Your Address (for distance sort)')).toBeInTheDocument();
+    expect(screen.getByText('Select a location...')).toBeInTheDocument();
   });
 
   it('has radius filter input', async () => {

@@ -264,14 +264,22 @@ const ListingDiscoveryPage: React.FC = () => {
                     onChange={(e) => setFilters({ ...filters, neighborhood: e.target.value })} placeholder="e.g. Downtown" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Your Latitude</label>
-                  <input type="number" step="any" className="form-input" value={filters.addressLat}
-                    onChange={(e) => setFilters({ ...filters, addressLat: e.target.value })} placeholder="40.71" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Your Longitude</label>
-                  <input type="number" step="any" className="form-input" value={filters.addressLng}
-                    onChange={(e) => setFilters({ ...filters, addressLng: e.target.value })} placeholder="-74.00" />
+                  <label className="form-label">Your Address (for distance sort)</label>
+                  <select className="form-input" value={`${filters.addressLat},${filters.addressLng}`}
+                    onChange={(e) => {
+                      const [lat, lng] = e.target.value.split(',');
+                      setFilters({ ...filters, addressLat: lat || '', addressLng: lng || '' });
+                    }}>
+                    <option value=",">Select a location...</option>
+                    <option value="40.7128,-74.0060">Arts District (40.71, -74.01)</option>
+                    <option value="40.7549,-73.9840">Craft Quarter (40.75, -73.98)</option>
+                    <option value="40.7870,-73.9754">Old Town (40.79, -73.98)</option>
+                    <option value="40.7233,-73.9985">Foundry Row (40.72, -74.00)</option>
+                    <option value="40.7465,-74.0014">Chelsea (40.75, -74.00)</option>
+                    <option value="40.7265,-73.9815">East Village (40.73, -73.98)</option>
+                  </select>
+                  <input type="text" className="form-input mt-sm" value={filters.addressLat && filters.addressLng ? `${filters.addressLat}, ${filters.addressLng}` : ''}
+                    placeholder="Or enter: lat, lng (e.g. 40.71, -74.00)" readOnly style={{ fontSize: '0.8rem', color: 'var(--neutral-500)' }} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Radius (miles)</label>

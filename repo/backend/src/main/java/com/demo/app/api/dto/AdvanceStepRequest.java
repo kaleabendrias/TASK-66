@@ -1,4 +1,6 @@
 package com.demo.app.api.dto;
 
-public record AdvanceStepRequest(String stepName, String notes) {
+import jakarta.validation.constraints.NotBlank;
+
+public record AdvanceStepRequest(@NotBlank String stepName, String notes) {
 }

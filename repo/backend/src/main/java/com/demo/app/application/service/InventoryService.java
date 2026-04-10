@@ -69,9 +69,11 @@ public class InventoryService {
         inventoryMovementRepository.save(movement);
 
         int available = newQuantityOnHand - item.getQuantityReserved();
-        if (available < item.getLowStockThreshold()) {
-            log.warn("Low stock alert: inventory item {} has available quantity {} below threshold {}",
-                    inventoryItemId, available, item.getLowStockThreshold());
+        // Strict < 5 system-wide low-stock alert, or per-item threshold if higher
+        int effectiveThreshold = Math.max(5, item.getLowStockThreshold());
+        if (available < effectiveThreshold) {
+            log.warn("LOW STOCK ALERT: item {} available={} below threshold={} (system minimum=5)",
+                    inventoryItemId, available, effectiveThreshold);
         }
 
         return item.toModel();

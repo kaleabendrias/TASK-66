@@ -41,6 +41,10 @@ public class ReservationService {
     }
 
     public StockReservation reserve(Long inventoryItemId, Long userId, int quantity, String idempotencyKey) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive, got: " + quantity);
+        }
+
         Optional<StockReservationEntity> existing = stockReservationRepository.findByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             return existing.get().toModel();
