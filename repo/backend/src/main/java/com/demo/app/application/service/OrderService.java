@@ -1,6 +1,7 @@
 package com.demo.app.application.service;
 
 import com.demo.app.domain.enums.OrderStatus;
+import com.demo.app.domain.exception.ResourceNotFoundException;
 import com.demo.app.domain.model.Order;
 import com.demo.app.persistence.entity.OrderEntity;
 import com.demo.app.persistence.entity.ProductEntity;
@@ -14,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +25,14 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+
+    private static final Map<String, Set<String>> ORDER_TRANSITIONS = Map.of(
+            "PLACED", Set.of("CONFIRMED", "CANCELLED"),
+            "CONFIRMED", Set.of("SHIPPED", "CANCELLED"),
+            "SHIPPED", Set.of("DELIVERED"),
+            "DELIVERED", Set.of(),
+            "CANCELLED", Set.of()
+    );
 
     @Transactional(readOnly = true)
     public List<Order> getAll() {
@@ -34,7 +45,7 @@ public class OrderService {
     public Order getById(Long id) {
         return orderRepository.findById(id)
                 .map(OrderEntity::toModel)
-                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Order", id));
     }
 
     @Transactional(readOnly = true)
@@ -64,10 +75,24 @@ public class OrderService {
     }
 
     @Transactional
-    public Order updateStatus(Long id, OrderStatus status) {
+    public Order updateStatus(Long id, OrderStatus newStatus) {
         OrderEntity entity = orderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Order not found with id: " + id));
-        entity.setStatus(status);
+                .orElseThrow(() -> new ResourceNotFoundException("Order", id));
+
+        String current = entity.getStatus().name();
+        String target = newStatus.name();
+
+        // Idempotent: if already at target status, return as-is
+        if (current.equals(target)) {
+            return entity.toModel();
+        }
+
+        Set<String> allowed = ORDER_TRANSITIONS.get(current);
+        if (allowed == null || !allowed.contains(target)) {
+            throw new IllegalStateException("Invalid order transition from " + current + " to " + target);
+        }
+
+        entity.setStatus(newStatus);
         entity.setUpdatedAt(LocalDateTime.now());
         return orderRepository.save(entity).toModel();
     }

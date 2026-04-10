@@ -51,10 +51,10 @@ describe('ListingDiscoveryPage', () => {
     expect(screen.getByText('Available Before')).toBeInTheDocument();
   });
 
-  it('has address-based location selector', async () => {
+  it('has manual address text input', async () => {
     render(<MemoryRouter><ListingDiscoveryPage /></MemoryRouter>);
     expect(await screen.findByText('Your Address (for distance sort)')).toBeInTheDocument();
-    expect(screen.getByText('Select a location...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Arts District/)).toBeInTheDocument();
   });
 
   it('has radius filter input', async () => {
