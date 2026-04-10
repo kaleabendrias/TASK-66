@@ -106,6 +106,11 @@ export interface Listing {
   layout: string | null;
   status: ListingStatus;
   publishedAt: string | null;
+  neighborhood: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  availableFrom: string | null;
+  availableTo: string | null;
 }
 
 // Member Tiers
@@ -130,6 +135,12 @@ export interface BenefitItem {
   packageId: number;
   benefitType: string;
   benefitValue: string;
+  scope: string;
+  exclusionGroup: string | null;
+  categoryId: number | null;
+  sellerId: number | null;
+  validFrom: string | null;
+  validTo: string | null;
 }
 
 export interface MemberProfile {

@@ -103,6 +103,7 @@ public class ListingService {
                 .orElseThrow(() -> new RuntimeException("Listing not found: " + id));
 
         entity.setViewCount(entity.getViewCount() + 1);
+        entity.setWeeklyViews(entity.getWeeklyViews() + 1);
         entity.setUpdatedAt(LocalDateTime.now());
         listingRepository.save(entity);
     }
@@ -165,6 +166,17 @@ public class ListingService {
                 })
                 .map(ListingEntity::toModel)
                 .toList();
+    }
+
+    @Transactional
+    public void refreshWeeklyViews() {
+        // Decay weekly views by 15% daily to approximate a rolling 7-day window
+        listingRepository.findAll().forEach(listing -> {
+            long decayed = (long) (listing.getWeeklyViews() * 0.85);
+            listing.setWeeklyViews(decayed);
+            listing.setUpdatedAt(java.time.LocalDateTime.now());
+            listingRepository.save(listing);
+        });
     }
 
     private double haversine(double lat1, double lon1, double lat2, double lon2) {

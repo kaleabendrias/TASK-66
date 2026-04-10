@@ -7,5 +7,8 @@ public enum MovementType {
     RESERVATION_HOLD,
     RESERVATION_RELEASE,
     RETURN,
-    TRANSFER
+    TRANSFER,
+    STOCKTAKE,
+    INBOUND,
+    OUTBOUND
 }

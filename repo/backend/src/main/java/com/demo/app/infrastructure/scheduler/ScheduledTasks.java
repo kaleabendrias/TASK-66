@@ -2,6 +2,7 @@ package com.demo.app.infrastructure.scheduler;
 
 import com.demo.app.application.service.AccountDeletionService;
 import com.demo.app.application.service.IncidentEscalationService;
+import com.demo.app.application.service.ListingService;
 import com.demo.app.application.service.ReservationService;
 import com.demo.app.infrastructure.audit.AuditService;
 import com.demo.app.infrastructure.ratelimit.RateLimitService;
@@ -22,6 +23,8 @@ public class ScheduledTasks {
     @Lazy
     private final AccountDeletionService accountDeletionService;
     private final RateLimitService rateLimitService;
+    @Lazy
+    private final ListingService listingService;
 
     @Scheduled(fixedRate = 60000)
     public void processExpiredReservations() {
@@ -46,5 +49,10 @@ public class ScheduledTasks {
     @Scheduled(fixedRate = 300000)
     public void evictRateLimitBuckets() {
         rateLimitService.evictExpired();
+    }
+
+    @Scheduled(cron = "0 0 1 * * *")
+    public void refreshWeeklyViews() {
+        listingService.refreshWeeklyViews();
     }
 }

@@ -53,6 +53,24 @@ public class OrderEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "tender_type", nullable = false, length = 30)
+    private String tenderType;
+
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal refundAmount;
+
+    @Column(name = "refund_reason")
+    private String refundReason;
+
+    @Column(name = "reconciled", nullable = false)
+    private boolean reconciled;
+
+    @Column(name = "reconciled_at")
+    private LocalDateTime reconciledAt;
+
+    @Column(name = "reconciliation_ref", length = 100)
+    private String reconciliationRef;
+
     public Order toModel() {
         return Order.builder()
                 .id(id)
@@ -61,6 +79,12 @@ public class OrderEntity {
                 .quantity(quantity)
                 .totalPrice(totalPrice)
                 .status(status)
+                .tenderType(tenderType)
+                .refundAmount(refundAmount)
+                .refundReason(refundReason)
+                .reconciled(reconciled)
+                .reconciledAt(reconciledAt)
+                .reconciliationRef(reconciliationRef)
                 .build();
     }
 }

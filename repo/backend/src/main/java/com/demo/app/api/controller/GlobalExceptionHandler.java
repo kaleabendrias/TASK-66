@@ -63,10 +63,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
-                "error", "BAD_REQUEST",
-                "message", ex.getMessage() != null ? ex.getMessage() : "Invalid request"
-        ));
+        // Sanitize: never expose stack traces or class names
+        String safe = "Invalid request";
+        String msg = ex.getMessage();
+        if (msg != null && !msg.contains("Exception") && !msg.contains("org.") && !msg.contains("com.demo")) {
+            safe = msg;
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "BAD_REQUEST", "message", safe));
     }
 
     @ExceptionHandler(Exception.class)

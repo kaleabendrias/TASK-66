@@ -76,9 +76,17 @@ public class RiskAnalyticsService {
         factors.put("escalated_incidents_30d", escalatedIncidents);
         score += escalatedIncidents * 15.0;
 
-        // Incidents reported by this user
-        long sellerReportedIncidents = userRecentIncidents.size();
-        factors.put("seller_reported_incidents_30d", sellerReportedIncidents);
+        // Seller-specific: incidents assigned to this user (flagged by moderators)
+        long assignedIncidents = incidentRepository.findByAssigneeId(userId).stream()
+                .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
+                .count();
+        factors.put("assigned_incidents_30d", assignedIncidents);
+        score += assignedIncidents * 12.0;
+
+        // Repeat incident signal: if same user has >2 incidents in 30 days
+        long repeatSignal = userRecentIncidents.size() > 2 ? userRecentIncidents.size() - 2 : 0;
+        factors.put("repeat_incident_penalty", repeatSignal);
+        score += repeatSignal * 8.0;
 
         // Rejected appeals (staff exceptions denied)
         long rejectedAppeals = appealRepository.findByUserId(userId).stream()
@@ -120,7 +128,7 @@ public class RiskAnalyticsService {
         riskScore.setFactors(factorsJson);
         riskScore.setComputedAt(LocalDateTime.now());
         riskScore.setSellerComplaintCount((int) escalatedIncidents);
-        riskScore.setOpenIncidentCount((int) sellerReportedIncidents);
+        riskScore.setOpenIncidentCount((int) assignedIncidents);
         riskScore.setAppealRejectionCount((int) rejectedAppeals);
 
         return riskScoreRepository.save(riskScore);

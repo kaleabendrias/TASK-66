@@ -107,7 +107,13 @@ public class OrderController {
                 order.getProductId(),
                 order.getQuantity(),
                 order.getTotalPrice(),
-                order.getStatus() != null ? order.getStatus().name() : null
+                order.getStatus() != null ? order.getStatus().name() : null,
+                order.getTenderType(),
+                order.getRefundAmount(),
+                order.getRefundReason(),
+                order.isReconciled(),
+                order.getReconciledAt(),
+                order.getReconciliationRef()
         );
     }
 }

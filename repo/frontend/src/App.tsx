@@ -77,6 +77,7 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route path="/reservations" element={<InventoryPage />} />
           <Route
             path="/fulfillment"
             element={

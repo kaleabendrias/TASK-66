@@ -48,11 +48,12 @@ public class AuditAspect {
 
             Long entityId = extractEntityId(result, joinPoint.getArgs());
 
-            // Extract the response body for logging, not the full ResponseEntity
-            Object logValue = result;
-            if (logValue instanceof org.springframework.http.ResponseEntity<?> re) {
-                logValue = re.getBody();
-            }
+            // Redact: only log entity type, ID, and action — not the full response body
+            // This prevents over-collection of sensitive data (passwords, tokens, PII)
+            java.util.Map<String, Object> redactedValue = new java.util.LinkedHashMap<>();
+            redactedValue.put("entityType", audited.entityType());
+            redactedValue.put("entityId", entityId);
+            redactedValue.put("action", audited.action());
 
             auditService.log(
                     audited.entityType(),
@@ -60,7 +61,7 @@ public class AuditAspect {
                     audited.action(),
                     actorId,
                     null,
-                    logValue,
+                    redactedValue,
                     ipAddress
             );
         } catch (Exception e) {

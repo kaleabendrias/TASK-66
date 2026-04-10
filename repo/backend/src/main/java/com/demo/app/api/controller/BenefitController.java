@@ -58,7 +58,7 @@ public class BenefitController {
     }
 
     @PostMapping("/redeem")
-    @PreAuthorize("hasAnyRole('BUYER', 'SELLER', 'MODERATOR', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('MEMBER', 'SELLER', 'MODERATOR', 'ADMINISTRATOR')")
     public ResponseEntity<Void> redeemBenefit(@RequestBody RedeemBenefitRequest request) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long userId = userRepository.findByUsername(username)

@@ -103,7 +103,7 @@ class MemberProfileServiceTest {
     }
 
     @Test
-    @DisplayName("addPoints updates the points balance")
+    @DisplayName("addSpend updates the spend balance")
     void testAddPoints_updatesBalance() {
         memberProfileService.createProfile(user.getId(), null);
 
@@ -113,7 +113,7 @@ class MemberProfileServiceTest {
     }
 
     @Test
-    @DisplayName("addPoints creates a ledger entry")
+    @DisplayName("addSpend creates a ledger entry")
     void testAddPoints_createsLedgerEntry() {
         MemberProfile profile = memberProfileService.createProfile(user.getId(), null);
 
@@ -140,7 +140,7 @@ class MemberProfileServiceTest {
     }
 
     @Test
-    @DisplayName("deductPoints subtracts from the balance")
+    @DisplayName("deductSpend subtracts from the balance")
     void testDeductPoints_subtractsBalance() {
         memberProfileService.createProfile(user.getId(), null);
         memberProfileService.addSpend(user.getId(), 500, "earn");
@@ -151,7 +151,7 @@ class MemberProfileServiceTest {
     }
 
     @Test
-    @DisplayName("deductPoints with insufficient balance throws RuntimeException")
+    @DisplayName("deductSpend with insufficient balance throws RuntimeException")
     void testDeductPoints_insufficientBalance_throws() {
         memberProfileService.createProfile(user.getId(), null);
         memberProfileService.addSpend(user.getId(), 100, "earn");
