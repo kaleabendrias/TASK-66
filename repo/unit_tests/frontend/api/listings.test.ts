@@ -40,7 +40,14 @@ describe('listings API', () => {
   it('searchListings calls GET with params object', async () => {
     (client.get as any).mockResolvedValue({ data: [] });
     await searchListings({ q: 'widget', minPrice: 10 });
-    expect(client.get).toHaveBeenCalledWith('/listings/search', { params: { q: 'widget', minPrice: 10 } });
+    // The axios call now carries a paramsSerializer so that array
+    // params (e.g. `tags`) are emitted as repeated `tags=a&tags=b`
+    // instead of `tags[]=a&tags[]=b`, matching the Spring
+    // @RequestParam List<String> binding on the server.
+    expect(client.get).toHaveBeenCalledWith('/listings/search', {
+      params: { q: 'widget', minPrice: 10 },
+      paramsSerializer: { indexes: null },
+    });
   });
 
   it('createListing calls POST /listings', async () => {

@@ -62,10 +62,12 @@ log "Starting services for API integration tests..."
 docker compose down -v 2>/dev/null || true
 docker compose up -d --build --wait 2>&1 | tail -5
 
-# Wait for backend readiness
+# Wait for backend readiness — the backend now only listens on HTTPS 8443
+# inside the container, so the readiness probe hits the proxy which
+# re-encrypts to the backend over TLS (end-to-end TLS, no plaintext hop).
 log "Waiting for backend to be ready..."
 for i in $(seq 1 30); do
-  if docker exec demo-backend wget -q -O- http://localhost:8080/api/categories > /dev/null 2>&1; then
+  if curl -k -s -o /dev/null -w '%{http_code}' https://localhost:8443/api/categories | grep -qE '^(200|401|403)$'; then
     break
   fi
   sleep 2
