@@ -1,100 +1,68 @@
-# audit_report-1 Fix Check
+# Fix Check Report for audit_report-2.md
 
-Date: 2026-04-10
-Source report checked: /home/mint/Desktop/projects/task-12/.tmp/audit_report-1.md
-Scope checked: /home/mint/Desktop/projects/task-12/repo (static review only)
+Date: 2026-04-11
+Mode: Static-only verification (no runtime execution, no tests run)
 
-Rule applied from request: if not tried or not certain, mark as Pass.
+## Verdict
+- Static status: **All previously reported issues appear fixed in code/docs.**
+- Runtime confidence: **Cannot fully confirm** (project/tests were not executed in this check).
 
-## Overall
-- Issues reviewed from source report: 9
-- Fixed: 9
-- Not fixed: 0
-- Pass (uncertain/not tried): 0
+## Issue-by-Issue Check
 
-## Issue-by-issue verification
-
-1. Fulfillment object-level authorization missing for read endpoints
-- Status: Fixed
-- Why: Seller-scoping checks were added for fulfillment read paths.
+1. Incident resolution UI/API closure-code mismatch
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/src/main/java/com/demo/app/api/controller/FulfillmentController.java:63
-  - backend/src/main/java/com/demo/app/api/controller/FulfillmentController.java:69
-  - backend/src/main/java/com/demo/app/api/controller/FulfillmentController.java:75
-  - backend/src/main/java/com/demo/app/api/controller/FulfillmentController.java:83
+  - `frontend/src/api/incidents.ts:40`
+  - `frontend/src/api/incidents.ts:52`
+  - `frontend/src/pages/IncidentDetailPage.tsx:77`
+  - `frontend/src/pages/IncidentDetailPage.tsx:205`
 
-2. Inventory data access lacked seller object scoping
-- Status: Fixed
-- Why: Seller ownership filtering/checks now exist on inventory product and low-stock reads.
+2. Risk analytics seller-linked semantics gap
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/src/main/java/com/demo/app/api/controller/InventoryController.java:34
-  - backend/src/main/java/com/demo/app/api/controller/InventoryController.java:38
-  - backend/src/main/java/com/demo/app/api/controller/InventoryController.java:54
-  - backend/src/main/java/com/demo/app/api/controller/InventoryController.java:60
+  - `backend/src/main/resources/db/migration/V21__incident_seller_linkage.sql:9`
+  - `backend/src/main/java/com/demo/app/persistence/entity/IncidentEntity.java:33`
+  - `backend/src/main/java/com/demo/app/persistence/repository/IncidentRepository.java:21`
+  - `backend/src/main/java/com/demo/app/application/service/RiskAnalyticsService.java:72`
 
-3. Exception-and-anomaly loop incomplete at API boundary
-- Status: Fixed
-- Why: Risk event ingestion endpoint exists and is role-protected; tests added for ingestion and score propagation.
+3. At-rest encryption incomplete for user PII
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/src/main/java/com/demo/app/api/controller/RiskAnalyticsController.java:50
-  - backend/src/main/java/com/demo/app/api/controller/RiskAnalyticsController.java:51
-  - API_tests/test_negative_paths.py:71
-  - API_tests/test_negative_paths.py:88
+  - `backend/src/main/resources/db/migration/V20__encrypt_user_pii.sql:20`
+  - `backend/src/main/java/com/demo/app/persistence/entity/UserEntity.java:29`
+  - `backend/src/main/java/com/demo/app/persistence/entity/UserEntity.java:42`
 
-4. Appeal evidence stored unencrypted on local filesystem
-- Status: Fixed
-- Why: Evidence is now encrypted before write via dedicated encryption service.
+4. Documentation/test-gate consistency mismatch
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/src/main/java/com/demo/app/api/controller/AppealController.java:150
-  - backend/src/main/java/com/demo/app/infrastructure/encryption/EvidenceEncryptionService.java:41
+  - `README.md:64`
+  - `README.md:65`
+  - `README.md:127`
+  - `run_tests.sh:42`
+  - `backend/pom.xml:171`
+  - `frontend/vitest.config.ts:49`
 
-5. Benefit issuance/redemption not strongly tied to order/ticket
-- Status: Fixed
-- Why: Structured references and strict FK/check constraints were added; service enforces ORDER/INCIDENT validation.
+5. Appeal related-entity validation missing
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/src/main/resources/db/migration/V16__benefit_ledger_structured_refs.sql:4
-  - backend/src/main/resources/db/migration/V17__benefit_ledger_strict_fks.sql:3
-  - backend/src/main/resources/db/migration/V18__mandatory_benefit_refs.sql:7
-  - backend/src/main/java/com/demo/app/application/service/BenefitService.java:44
-  - backend/src/main/java/com/demo/app/application/service/BenefitService.java:80
-  - API_tests/test_benefit_refs.py:9
+  - `backend/src/main/java/com/demo/app/application/service/AppealService.java:52`
+  - `backend/src/main/java/com/demo/app/application/service/AppealService.java:49`
 
-6. Appeal create request lacked strict validation
-- Status: Fixed
-- Why: relatedEntityType, relatedEntityId, and reason are now validated.
+6. WebP magic-byte validation bug
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/src/main/java/com/demo/app/api/dto/CreateAppealRequest.java:8
-  - backend/src/main/java/com/demo/app/api/dto/CreateAppealRequest.java:9
-  - backend/src/main/java/com/demo/app/api/dto/CreateAppealRequest.java:10
-  - API_tests/test_negative_paths.py:64
-  - API_tests/test_negative_paths.py:71
+  - `backend/src/main/java/com/demo/app/api/controller/AppealController.java:107`
+  - `backend/src/main/java/com/demo/app/api/controller/AppealController.java:135`
 
-7. Test-coverage gates overstated confidence
-- Status: Fixed
-- Why: Backend JaCoCo gate increased and exclusions reduced; frontend coverage include expanded to components/pages.
+7. Inventory frontend did not expose document-specific operations
+- Status: **Fixed (static evidence)**
 - Evidence:
-  - backend/pom.xml:179
-  - backend/pom.xml:137
-  - frontend/vitest.config.ts:27
-  - frontend/vitest.config.ts:30
+  - `frontend/src/api/warehouses.ts:40`
+  - `frontend/src/api/warehouses.ts:45`
+  - `frontend/src/api/warehouses.ts:50`
+  - `frontend/src/pages/InventoryPage.tsx:17`
+  - `frontend/src/pages/InventoryPage.tsx:109`
 
-8. TLS requirement not end-to-end enforced in API test path
-- Status: Fixed
-- Why: API tests now route via HTTPS proxy only; verify script also TLS-only.
-- Evidence:
-  - API_tests/conftest.py:6
-  - API_tests/conftest.py:7
-  - API_tests/verify.py:7
-  - API_tests/verify.py:8
-
-9. README runtime-success wording beyond static proof
-- Status: Fixed
-- Why: wording now softened to verification/expected behavior language and includes caveats.
-- Evidence:
-  - README.md:15
-  - README.md:16
-  - README.md:357
-
-## Notes
-- This is a static-only fix check. No runtime execution was performed.
-- Where behavior depends on runtime conditions, this check only confirms code/test/documentation changes are present.
+## Important Boundary
+- This report is **not** a runtime pass certificate.
+- Because no startup/tests were run in this check, final behavior remains: **Manual verification required** for runtime correctness and regression safety.

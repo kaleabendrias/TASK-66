@@ -1,0 +1,9 @@
+{
+	"prompt": "",
+	"project_type": "fullstack",
+	"frontend_language": "TypeScript",
+	"backend_language": "Java",
+	"frontend_framework": "React",
+	"backend_framework": "Spring Boot",
+	"database": "PostgreSQL"
+}
