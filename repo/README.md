@@ -13,7 +13,7 @@ docker compose up --build
 ```
 
 Requires Docker and Compose installed. On a clean volume, Flyway applies
-21 migrations and seeds demo data. The frontend build expects network access
+22 migrations and seeds demo data. The frontend build expects network access
 during `npm install`; subsequent starts use cached layers. Secrets are
 generated at container startup via the entrypoint (no .env files required).
 If `APP_JWT_SECRET` or `APP_ENCRYPTION_SECRET` are set in the environment,
@@ -124,7 +124,7 @@ frontend/src
  └── pages/                        Route-level components
 ```
 
-### Database (21 Flyway Migrations)
+### Database (22 Flyway Migrations)
 
 ```
 V1  Base tables:        app_user, category, product, product_order
@@ -164,6 +164,8 @@ V20 User PII at rest:   AES-GCM encrypted email / display_name;
                         SHA-256 email_lookup_hash for uniqueness + lookup
 V21 Incident seller:    explicit seller_id linkage on incidents for
                         seller-scoped risk analytics windows
+V22 Order reservation:  product_order.reservation_id FK to stock_reservation
+                        for cancel/fail compensation of held inventory
 ```
 
 ---
@@ -308,11 +310,11 @@ curl -sk -X POST https://localhost:8443/api/reservations/1/confirm \
 curl -sk -X POST https://localhost:8443/api/incidents \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"incidentType":"ORDER_ISSUE","severity":"HIGH",
+  -d '{"incidentType":"ORDER_ISSUE","severity":"HIGH","sellerId":3,
        "title":"Wrong item shipped","description":"Received keyboard instead of headphones.\n\n[Location Notes: Warehouse B, Dock 3]"}'
 
 # 200 OK
-{"id":3,"reporterId":2,"assigneeId":null,"incidentType":"ORDER_ISSUE",
+{"id":3,"reporterId":2,"assigneeId":null,"sellerId":3,"incidentType":"ORDER_ISSUE",
  "severity":"HIGH","title":"Wrong item shipped","status":"OPEN",
  "slaAckDeadline":"2026-04-09T09:15:00","slaResolveDeadline":"2026-04-10T09:00:00",
  "escalationLevel":0,"createdAt":"2026-04-09T09:00:00","acknowledgedAt":null,"resolvedAt":null}
@@ -390,7 +392,7 @@ curl -sk https://localhost:8443/api/warehouses \
 INC=$(curl -s -X POST https://localhost:8443/api/incidents \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"incidentType":"OTHER","severity":"NORMAL","title":"Test","description":"Verification"}' \
+  -d '{"incidentType":"OTHER","severity":"NORMAL","title":"Test","description":"Verification","sellerId":3}' \
   | jq -r .id)
 curl -s -X POST "https://localhost:8443/api/incidents/$INC/acknowledge" \
   -H "Authorization: Bearer $TOKEN" | jq .status
@@ -481,7 +483,7 @@ works fully offline.
 │       ├── java/com/demo/app/         Java source tree
 │       └── resources/
 │           ├── application.yml         All config (no .env)
-│           └── db/migration/           21 Flyway SQL migrations
+│           └── db/migration/           22 Flyway SQL migrations
 ├── frontend/
 │   ├── Dockerfile                     Multi-stage Node 20
 │   ├── package.json                   React, Axios, Zustand, Vitest

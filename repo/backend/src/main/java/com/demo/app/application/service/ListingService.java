@@ -56,9 +56,18 @@ public class ListingService {
                 .tags(listing.getTags() != null ? listing.getTags().toArray(new String[0]) : null)
                 .featured(listing.isFeatured())
                 .viewCount(0)
+                .weeklyViews(0)
                 .searchRank(0.0)
                 .metadata(listing.getMetadata())
                 .status(ListingStatus.DRAFT.name())
+                .neighborhood(listing.getNeighborhood())
+                .latitude(listing.getLatitude())
+                .longitude(listing.getLongitude())
+                .price(listing.getPrice())
+                .sqft(listing.getSqft())
+                .layout(listing.getLayout())
+                .availableFrom(listing.getAvailableFrom())
+                .availableTo(listing.getAvailableTo())
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -75,6 +84,14 @@ public class ListingService {
         entity.setTags(listing.getTags() != null ? listing.getTags().toArray(new String[0]) : null);
         entity.setFeatured(listing.isFeatured());
         entity.setMetadata(listing.getMetadata());
+        entity.setNeighborhood(listing.getNeighborhood());
+        entity.setLatitude(listing.getLatitude());
+        entity.setLongitude(listing.getLongitude());
+        entity.setPrice(listing.getPrice());
+        entity.setSqft(listing.getSqft());
+        entity.setLayout(listing.getLayout());
+        entity.setAvailableFrom(listing.getAvailableFrom());
+        entity.setAvailableTo(listing.getAvailableTo());
         entity.setUpdatedAt(LocalDateTime.now());
         return listingRepository.save(entity).toModel();
     }
@@ -117,6 +134,22 @@ public class ListingService {
                 .toList();
     }
 
+    /**
+     * Sort modes accepted by the search endpoint. Centralised here so the
+     * frontend cannot drift away from the supported set.
+     */
+    public enum SortMode {
+        RELEVANCE,
+        PRICE_ASC,
+        PRICE_DESC,
+        SQFT_ASC,
+        SQFT_DESC,
+        AVAILABLE_FROM_ASC,
+        AVAILABLE_FROM_DESC,
+        DISTANCE,
+        WEEKLY_VIEWS_DESC
+    }
+
     @Transactional(readOnly = true)
     public List<Listing> searchAdvanced(String query, String neighborhood,
                                          Double userLat, Double userLng, Double radiusMiles,
@@ -125,9 +158,31 @@ public class ListingService {
                                          java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
                                          Integer minSqft, Integer maxSqft,
                                          String layout) {
+        return searchAdvanced(query, neighborhood, userLat, userLng, radiusMiles,
+                availableAfter, availableBefore, minPrice, maxPrice, minSqft, maxSqft, layout,
+                java.util.List.of(), null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Listing> searchAdvanced(String query, String neighborhood,
+                                         Double userLat, Double userLng, Double radiusMiles,
+                                         java.time.LocalDate availableAfter,
+                                         java.time.LocalDate availableBefore,
+                                         java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
+                                         Integer minSqft, Integer maxSqft,
+                                         String layout,
+                                         java.util.List<String> tags,
+                                         SortMode sort) {
         List<ListingEntity> all = listingRepository.findByStatus("PUBLISHED");
 
-        return all.stream()
+        java.util.List<String> normalizedTags = tags == null
+                ? java.util.List.of()
+                : tags.stream()
+                        .filter(t -> t != null && !t.isBlank())
+                        .map(t -> t.trim().toLowerCase())
+                        .toList();
+
+        java.util.stream.Stream<ListingEntity> filtered = all.stream()
                 .filter(l -> query == null || query.isBlank()
                         || l.getTitle().toLowerCase().contains(query.toLowerCase())
                         || (l.getSummary() != null && l.getSummary().toLowerCase().contains(query.toLowerCase())))
@@ -154,16 +209,66 @@ public class ListingService {
                     double distMiles = distKm / 1.609344;
                     return distMiles <= radiusMiles;
                 })
-                .sorted((a, b) -> {
-                    if (userLat != null && userLng != null
-                            && a.getLatitude() != null && a.getLongitude() != null
-                            && b.getLatitude() != null && b.getLongitude() != null) {
-                        double distA = haversine(userLat, userLng, a.getLatitude(), a.getLongitude());
-                        double distB = haversine(userLat, userLng, b.getLatitude(), b.getLongitude());
-                        return Double.compare(distA, distB);
+                .filter(l -> {
+                    // tag filter: AND-match — every requested tag must be on the listing.
+                    if (normalizedTags.isEmpty()) return true;
+                    if (l.getTags() == null) return false;
+                    java.util.Set<String> have = new java.util.HashSet<>();
+                    for (String t : l.getTags()) {
+                        if (t != null) have.add(t.toLowerCase());
                     }
-                    return Double.compare(b.getSearchRank(), a.getSearchRank());
-                })
+                    return have.containsAll(normalizedTags);
+                });
+
+        SortMode effectiveSort = sort != null ? sort : SortMode.RELEVANCE;
+        java.util.Comparator<ListingEntity> comparator = switch (effectiveSort) {
+            case PRICE_ASC -> java.util.Comparator.comparing(
+                    ListingEntity::getPrice,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+            case PRICE_DESC -> java.util.Comparator.comparing(
+                    ListingEntity::getPrice,
+                    java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder()));
+            case SQFT_ASC -> java.util.Comparator.comparing(
+                    ListingEntity::getSqft,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+            case SQFT_DESC -> java.util.Comparator.comparing(
+                    ListingEntity::getSqft,
+                    java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder()));
+            case AVAILABLE_FROM_ASC -> java.util.Comparator.comparing(
+                    ListingEntity::getAvailableFrom,
+                    java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder()));
+            case AVAILABLE_FROM_DESC -> java.util.Comparator.comparing(
+                    ListingEntity::getAvailableFrom,
+                    java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder()));
+            case WEEKLY_VIEWS_DESC -> java.util.Comparator.comparingLong(ListingEntity::getWeeklyViews).reversed();
+            case DISTANCE -> {
+                if (userLat == null || userLng == null) {
+                    yield java.util.Comparator.comparingDouble(ListingEntity::getSearchRank).reversed();
+                }
+                yield java.util.Comparator.comparingDouble((ListingEntity l) -> {
+                    if (l.getLatitude() == null || l.getLongitude() == null) {
+                        return Double.MAX_VALUE;
+                    }
+                    return haversine(userLat, userLng, l.getLatitude(), l.getLongitude());
+                });
+            }
+            // Relevance: distance when geo is supplied, otherwise search_rank
+            // descending. Featured listings always float to the top.
+            case RELEVANCE -> java.util.Comparator.comparing(ListingEntity::isFeatured).reversed()
+                    .thenComparing((ListingEntity a, ListingEntity b) -> {
+                        if (userLat != null && userLng != null
+                                && a.getLatitude() != null && a.getLongitude() != null
+                                && b.getLatitude() != null && b.getLongitude() != null) {
+                            double distA = haversine(userLat, userLng, a.getLatitude(), a.getLongitude());
+                            double distB = haversine(userLat, userLng, b.getLatitude(), b.getLongitude());
+                            return Double.compare(distA, distB);
+                        }
+                        return Double.compare(b.getSearchRank(), a.getSearchRank());
+                    });
+        };
+
+        return filtered
+                .sorted(comparator)
                 .map(ListingEntity::toModel)
                 .toList();
     }

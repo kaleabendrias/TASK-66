@@ -33,7 +33,7 @@ public class CategoryController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public ResponseEntity<CategoryDto> create(@RequestBody CategoryDto dto) {
+    public ResponseEntity<CategoryDto> create(@jakarta.validation.Valid @RequestBody CategoryDto dto) {
         Category category = categoryService.create(
                 Category.builder().name(dto.name()).description(dto.description()).build());
         return ResponseEntity.ok(new CategoryDto(category.getId(), category.getName(), category.getDescription()));
@@ -41,7 +41,7 @@ public class CategoryController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public ResponseEntity<CategoryDto> update(@PathVariable Long id, @RequestBody CategoryDto dto) {
+    public ResponseEntity<CategoryDto> update(@PathVariable Long id, @jakarta.validation.Valid @RequestBody CategoryDto dto) {
         Category category = categoryService.update(id,
                 Category.builder().name(dto.name()).description(dto.description()).build());
         return ResponseEntity.ok(new CategoryDto(category.getId(), category.getName(), category.getDescription()));

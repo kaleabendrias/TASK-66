@@ -68,3 +68,30 @@ class TestAppeals:
         assert resp.status_code in (200, 201)
         body = resp.json()
         assert "evidence.pdf" in body["reason"]
+
+    def test_evidence_upload_enforces_five_file_boundary(self, member_token, base_url):
+        """Hard cap of 5 evidence files per appeal — the sixth must be rejected."""
+        appeal = _create_appeal(member_token, base_url)
+        appeal_id = appeal["id"]
+        # Minimal JPEG header (FF D8 FF) — enough to satisfy the magic-byte check.
+        jpeg_bytes = bytes([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00])
+
+        # First five must succeed.
+        for i in range(1, 6):
+            files = {"file": (f"ev-{i}.jpg", jpeg_bytes, "image/jpeg")}
+            r = requests.post(
+                f"{base_url}/appeals/{appeal_id}/evidence",
+                files=files,
+                headers=auth_header(member_token),
+            )
+            assert r.status_code == 200, f"upload {i} should succeed: {r.status_code} {r.text}"
+
+        # The sixth must be rejected with a 4xx (CONFLICT specifically).
+        files = {"file": ("ev-6.jpg", jpeg_bytes, "image/jpeg")}
+        r = requests.post(
+            f"{base_url}/appeals/{appeal_id}/evidence",
+            files=files,
+            headers=auth_header(member_token),
+        )
+        assert r.status_code in (400, 409), \
+            f"sixth upload must be rejected by 5-file cap: {r.status_code} {r.text}"

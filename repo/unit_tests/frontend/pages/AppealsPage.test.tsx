@@ -33,4 +33,16 @@ describe('AppealsPage', () => {
     render(<MemoryRouter><AppealsPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('SUBMITTED')).toBeInTheDocument(), { timeout: 3000 });
   });
+
+  it('does not offer the unsupported ACCOUNT entity type in the create form', async () => {
+    render(<MemoryRouter><AppealsPage /></MemoryRouter>);
+    (await waitFor(() => screen.getByText(/submit appeal/i))).click();
+    const select = await waitFor(() => screen.getByLabelText(/related entity type/i)) as HTMLSelectElement;
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toContain('PRODUCT');
+    expect(values).toContain('ORDER');
+    expect(values).toContain('INCIDENT');
+    expect(values).toContain('LISTING');
+    expect(values).not.toContain('ACCOUNT');
+  });
 });

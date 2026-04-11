@@ -35,6 +35,7 @@ class TestIdempotency:
                 "severity": "NORMAL",
                 "title": "Idempotency test incident",
                 "description": "Testing acknowledge idempotency",
+                "sellerId": 3,
             },
             headers=headers,
         )

@@ -86,7 +86,7 @@ class TestObjectLevelAuth:
         r1 = requests.post(
             f"{base_url}/incidents",
             headers=mh,
-            json={"incidentType": "OTHER", "severity": "LOW", "title": "Private", "description": "Mine"},
+            json={"incidentType": "OTHER", "severity": "LOW", "title": "Private", "description": "Mine", "sellerId": 3},
         )
         if r1.status_code != 200:
             return

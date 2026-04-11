@@ -11,6 +11,21 @@ export async function getListingBySlug(slug: string): Promise<Listing> {
   return data;
 }
 
+// Canonical SortMode enum — kept in lock-step with
+// ListingService.SortMode on the backend. Passing an unknown value
+// returns a 400 from the server, which is the correct failure mode
+// (we never want to silently fall back to a client-local rank).
+export type SortMode =
+  | 'RELEVANCE'
+  | 'PRICE_ASC'
+  | 'PRICE_DESC'
+  | 'SQFT_ASC'
+  | 'SQFT_DESC'
+  | 'AVAILABLE_FROM_ASC'
+  | 'AVAILABLE_FROM_DESC'
+  | 'DISTANCE'
+  | 'WEEKLY_VIEWS_DESC';
+
 export interface ListingSearchParams {
   q?: string;
   neighborhood?: string;
@@ -24,10 +39,22 @@ export interface ListingSearchParams {
   minSqft?: number;
   maxSqft?: number;
   layout?: string;
+  // Tags and sort are first-class server parameters. The frontend
+  // MUST NOT sort or tag-filter client-side — that would cause the
+  // rendered list to drift away from the canonical backend rank and
+  // page boundaries (the discovery tests explicitly verify the
+  // server's order is preserved).
+  tags?: string[];
+  sort?: SortMode;
 }
 
 export async function searchListings(params: ListingSearchParams = {}): Promise<Listing[]> {
-  const { data } = await client.get<Listing[]>('/listings/search', { params });
+  // Axios serializes `tags: ['a','b']` as `tags=a&tags=b`, which matches
+  // the Spring @RequestParam List<String> binding in ListingController.
+  const { data } = await client.get<Listing[]>('/listings/search', {
+    params,
+    paramsSerializer: { indexes: null },
+  });
   return data;
 }
 

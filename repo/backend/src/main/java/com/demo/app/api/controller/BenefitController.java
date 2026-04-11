@@ -47,7 +47,7 @@ public class BenefitController {
 
     @PostMapping("/issue")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMINISTRATOR')")
-    public ResponseEntity<Void> issueBenefit(@RequestBody IssueBenefitRequest request) {
+    public ResponseEntity<Void> issueBenefit(@jakarta.validation.Valid @RequestBody IssueBenefitRequest request) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long issuedByUserId = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username))
@@ -59,14 +59,20 @@ public class BenefitController {
 
     @PostMapping("/redeem")
     @PreAuthorize("hasAnyRole('MEMBER', 'SELLER', 'MODERATOR', 'ADMINISTRATOR')")
-    public ResponseEntity<Void> redeemBenefit(@RequestBody RedeemBenefitRequest request) {
+    public ResponseEntity<Void> redeemBenefit(@jakarta.validation.Valid @RequestBody RedeemBenefitRequest request) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         Long userId = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username))
                 .getId();
 
         MemberProfile profile = memberProfileService.getByUserId(userId);
-        benefitService.redeemBenefit(profile.getId(), request.benefitItemId(), request.reference(), request.categoryId(), request.sellerId(), request.referenceType(), request.referenceId());
+        benefitService.redeemBenefit(
+                userId,
+                profile.getId(),
+                request.benefitItemId(),
+                request.reference(),
+                request.referenceType(),
+                request.referenceId());
         return ResponseEntity.ok().build();
     }
 

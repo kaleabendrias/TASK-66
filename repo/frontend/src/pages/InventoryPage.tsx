@@ -3,21 +3,22 @@ import {
   getWarehouses,
   getLowStockItems,
   getInventoryByProduct,
-  getMyReservations,
-  confirmReservation,
-  cancelReservation,
   recordInbound,
   recordOutbound,
   recordStocktake,
 } from '@/api/warehouses';
 import { getProducts } from '@/api/products';
-import { Warehouse, InventoryItem, Product, StockReservation } from '@/api/types';
+import { Warehouse, InventoryItem, Product } from '@/api/types';
 
 // These three operations map to dedicated backend endpoints
 // (/inventory/inbound, /inventory/outbound, /inventory/stocktake), each of
 // which writes a typed movement record and is audited independently. Do not
 // fold them back into a generic "adjustment" — the endpoints diverge on
 // validation and expected payload shape.
+//
+// This page is for SELLER / WAREHOUSE_STAFF / ADMINISTRATOR roles only.
+// Member-facing reservation views live in ReservationsPage so members never
+// trigger an unauthorized prefetch on getProducts/getWarehouses/etc.
 type MovementKind = 'INBOUND' | 'OUTBOUND' | 'STOCKTAKE';
 
 const MOVEMENT_KINDS: { value: MovementKind; label: string; helper: string }[] = [
@@ -27,12 +28,10 @@ const MOVEMENT_KINDS: { value: MovementKind; label: string; helper: string }[] =
 ];
 
 const InventoryPage: React.FC = () => {
-  const [tab, setTab] = useState<'inventory' | 'reservations'>('inventory');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [lowStock, setLowStock] = useState<InventoryItem[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [reservations, setReservations] = useState<StockReservation[]>([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState<number | ''>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -69,12 +68,6 @@ const InventoryPage: React.FC = () => {
     if (products.length === 0) return;
     refreshInventory(products).catch(() => { /* ignore */ });
   }, [products, refreshInventory]);
-
-  const loadReservations = useCallback(async () => {
-    try { setReservations(await getMyReservations()); } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => { if (tab === 'reservations') loadReservations(); }, [tab, loadReservations]);
 
   const productName = (id: number) => products.find(p => p.id === id)?.name || `Product #${id}`;
 
@@ -137,13 +130,6 @@ const InventoryPage: React.FC = () => {
     }
   };
 
-  const handleConfirm = async (id: number) => {
-    try { await confirmReservation(id); loadReservations(); } catch { setError('Failed to confirm'); }
-  };
-  const handleCancel = async (id: number) => {
-    try { await cancelReservation(id); loadReservations(); } catch { setError('Failed to cancel'); }
-  };
-
   if (loading) return <div className="page-loading">Loading...</div>;
 
   const activeKind = MOVEMENT_KINDS.find(k => k.value === movementKind) ?? MOVEMENT_KINDS[0];
@@ -166,94 +152,48 @@ const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="tabs">
-        <div className={`tab ${tab === 'inventory' ? 'active' : ''}`} onClick={() => setTab('inventory')}>Inventory</div>
-        <div className={`tab ${tab === 'reservations' ? 'active' : ''}`} onClick={() => setTab('reservations')}>My Reservations</div>
+      {/* Warehouse selector */}
+      <div className="form-group" style={{ maxWidth: 300, marginBottom: '1rem' }}>
+        <label className="form-label">Warehouse</label>
+        <select className="form-input" value={selectedWarehouse} onChange={e => setSelectedWarehouse(e.target.value ? Number(e.target.value) : '')}>
+          <option value="">All Warehouses</option>
+          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
+        </select>
       </div>
 
-      {tab === 'inventory' && (
-        <>
-          {/* Warehouse selector */}
-          <div className="form-group" style={{ maxWidth: 300, marginBottom: '1rem' }}>
-            <label className="form-label">Warehouse</label>
-            <select className="form-input" value={selectedWarehouse} onChange={e => setSelectedWarehouse(e.target.value ? Number(e.target.value) : '')}>
-              <option value="">All Warehouses</option>
-              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} ({w.code})</option>)}
-            </select>
-          </div>
-
-          {/* Inventory table */}
-          <div className="card">
-            <div className="card-header">Product Inventory</div>
-            <div className="table-wrapper">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Product</th><th>Warehouse</th><th>On Hand</th><th>Reserved</th><th>Available</th><th>Status</th><th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center' }}>No inventory items found</td></tr>}
-                  {inventory.map(item => (
-                    <tr key={item.id}>
-                      <td>{productName(item.productId)}</td>
-                      <td>{item.warehouseName}</td>
-                      <td>{item.quantityOnHand}</td>
-                      <td>{item.quantityReserved}</td>
-                      <td>{item.quantityAvailable}</td>
-                      <td>{item.lowStock && <span className="badge badge-danger">LOW STOCK</span>}</td>
-                      <td>
-                        <div className="flex gap-sm">
-                          <button className="btn btn-primary btn-sm" onClick={() => openMovement(item, 'INBOUND')}>Inbound</button>
-                          <button className="btn btn-secondary btn-sm" onClick={() => openMovement(item, 'OUTBOUND')}>Outbound</button>
-                          <button className="btn btn-secondary btn-sm" onClick={() => openMovement(item, 'STOCKTAKE')}>Stocktake</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
-      {tab === 'reservations' && (
-        <div className="card">
-          <div className="card-header">My Reservations</div>
-          <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr><th>Inventory Item</th><th>Quantity</th><th>Status</th><th>Expires</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {reservations.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center' }}>No reservations</td></tr>}
-                {reservations.map(r => {
-                  const expires = new Date(r.expiresAt);
-                  const remaining = Math.max(0, Math.floor((expires.getTime() - Date.now()) / 60000));
-                  return (
-                    <tr key={r.id}>
-                      <td>#{r.inventoryItemId}</td>
-                      <td>{r.quantity}</td>
-                      <td><span className={`badge ${r.status === 'HELD' ? 'badge-warning' : r.status === 'CONFIRMED' ? 'badge-success' : 'badge-neutral'}`}>{r.status}</span></td>
-                      <td>{remaining > 0 ? `${remaining} min remaining` : 'Expired'}</td>
-                      <td>
-                        {r.status === 'HELD' && (
-                          <div className="flex gap-sm">
-                            <button className="btn btn-primary btn-sm" onClick={() => handleConfirm(r.id)}>Confirm</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleCancel(r.id)}>Cancel</button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+      {/* Inventory table */}
+      <div className="card">
+        <div className="card-header">Product Inventory</div>
+        <div className="table-wrapper">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Product</th><th>Warehouse</th><th>On Hand</th><th>Reserved</th><th>Available</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inventory.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center' }}>No inventory items found</td></tr>}
+              {inventory.map(item => (
+                <tr key={item.id}>
+                  <td>{productName(item.productId)}</td>
+                  <td>{item.warehouseName}</td>
+                  <td>{item.quantityOnHand}</td>
+                  <td>{item.quantityReserved}</td>
+                  <td>{item.quantityAvailable}</td>
+                  <td>{item.lowStock && <span className="badge badge-danger">LOW STOCK</span>}</td>
+                  <td>
+                    <div className="flex gap-sm">
+                      <button className="btn btn-primary btn-sm" onClick={() => openMovement(item, 'INBOUND')}>Inbound</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openMovement(item, 'OUTBOUND')}>Outbound</button>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openMovement(item, 'STOCKTAKE')}>Stocktake</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
       {/* Movement Modal */}
       {movementItem && (

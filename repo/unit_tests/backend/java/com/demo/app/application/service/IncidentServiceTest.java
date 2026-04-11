@@ -156,4 +156,32 @@ class IncidentServiceTest {
         assertEquals("Second comment", comments.get(1).getContent());
         assertEquals("Third comment", comments.get(2).getContent());
     }
+
+    @Test
+    @DisplayName("create rejects sellerId pointing at a non-SELLER user (risk analytics integrity)")
+    void testCreate_sellerIdMustBeSellerRole() {
+        UserEntity moderator = userRepository.save(TestFixtures.user("inc_mod_for_seller_check", Role.MODERATOR));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> incidentService.create(reporter.getId(), "ORDER_ISSUE", "NORMAL",
+                        "Bad seller id", "desc", null, null, moderator.getId()));
+        assertTrue(ex.getMessage().contains("SELLER"), "should mention SELLER in error: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("create accepts sellerId pointing at a SELLER user")
+    void testCreate_sellerIdAcceptsSellerRole() {
+        UserEntity seller = userRepository.save(TestFixtures.user("inc_real_seller", Role.SELLER));
+        Incident incident = incidentService.create(
+                reporter.getId(), "ORDER_ISSUE", "NORMAL", "Good seller", "desc", null, null, seller.getId());
+        assertEquals(seller.getId(), incident.getSellerId());
+    }
+
+    @Test
+    @DisplayName("create rejects sellerId that does not exist")
+    void testCreate_sellerIdMustExist() {
+        assertThrows(IllegalArgumentException.class,
+                () -> incidentService.create(reporter.getId(), "ORDER_ISSUE", "NORMAL",
+                        "Ghost seller", "desc", null, null, 9_999_999L));
+    }
 }

@@ -22,15 +22,24 @@ services:
       dockerfile: Dockerfile
     container_name: demo-backend
     expose:
-      - "8080"
+      - "8443"
     entrypoint: ["sh", "-c", "export APP_JWT_SECRET=$${APP_JWT_SECRET:-$$(cat /dev/urandom | tr -dc 'a-f0-9' | head -c 64)} && export APP_ENCRYPTION_SECRET=$${APP_ENCRYPTION_SECRET:-$$(cat /dev/urandom | tr -dc 'a-f0-9' | head -c 64)} && exec java -jar app.jar"]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/demodb
       SPRING_DATASOURCE_USERNAME: demouser
       SPRING_DATASOURCE_PASSWORD: demopass
-      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      # Flyway owns DDL; disable Hibernate strict schema validation so jsonb /
+      # text[] columns don't trip Hibernate's column-type comparison.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
       SPRING_JPA_SHOW_SQL: "false"
-      SERVER_PORT: "8080"
+      # HTTPS listener — keystore baked into the image in backend/Dockerfile.
+      # The proxy talks to this port over TLS (see proxy/nginx.conf).
+      SERVER_PORT: "8443"
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_KEY_STORE: "/app/certs/backend.p12"
+      SERVER_SSL_KEY_STORE_PASSWORD: "changeit"
+      SERVER_SSL_KEY_STORE_TYPE: "PKCS12"
+      SERVER_SSL_KEY_ALIAS: "backend"
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,7 +52,7 @@ services:
         VITE_API_BASE_URL: https://localhost:8443/api
     container_name: demo-frontend
     expose:
-      - "3000"
+      - "3443"
     depends_on:
       - backend
 

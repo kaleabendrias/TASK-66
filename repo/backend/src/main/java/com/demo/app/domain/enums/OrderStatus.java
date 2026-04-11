@@ -5,5 +5,8 @@ public enum OrderStatus {
     CONFIRMED,
     SHIPPED,
     DELIVERED,
-    CANCELLED
+    CANCELLED,
+    // Terminal failure (e.g. payment rejected, fulfillment irrecoverable).
+    // Triggers the same compensation path as CANCELLED.
+    FAILED
 }

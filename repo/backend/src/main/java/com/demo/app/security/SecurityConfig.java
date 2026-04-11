@@ -52,8 +52,13 @@ public class SecurityConfig {
                         .requestMatchers("/api/appeals/**").hasAnyRole("MEMBER", "SELLER", "WAREHOUSE_STAFF", "MODERATOR", "ADMINISTRATOR")
                         .requestMatchers("/api/members/**").hasAnyRole("MEMBER", "SELLER", "WAREHOUSE_STAFF", "MODERATOR", "ADMINISTRATOR")
                         .requestMatchers("/api/benefits/**").hasAnyRole("MEMBER", "SELLER", "WAREHOUSE_STAFF", "MODERATOR", "ADMINISTRATOR")
-                        .requestMatchers(HttpMethod.GET, "/api/warehouses/**").hasAnyRole("WAREHOUSE_STAFF", "ADMINISTRATOR")
+                        // Sellers can read warehouse metadata so they can scope inventory
+                        // operations to a specific location.
+                        .requestMatchers(HttpMethod.GET, "/api/warehouses/**").hasAnyRole("WAREHOUSE_STAFF", "SELLER", "ADMINISTRATOR")
                         .requestMatchers("/api/warehouses/**").hasAnyRole("WAREHOUSE_STAFF", "ADMINISTRATOR")
+                        // Sellers may read AND mutate inventory for their own products.
+                        // The InventoryController enforces object-level scoping so a
+                        // seller can only target a row whose product belongs to them.
                         .requestMatchers("/api/inventory/**").hasAnyRole("WAREHOUSE_STAFF", "SELLER", "ADMINISTRATOR")
                         .requestMatchers(HttpMethod.GET, "/api/fulfillments/**").hasAnyRole("WAREHOUSE_STAFF", "ADMINISTRATOR", "SELLER")
                         .requestMatchers("/api/fulfillments/**").hasAnyRole("WAREHOUSE_STAFF", "ADMINISTRATOR")

@@ -82,7 +82,7 @@ check("Risk analytics compute", r6.status_code == 200, f"score={r6.json().get('s
 
 # 12. Incident creation
 r7 = requests.post(f"{BASE}/incidents", headers=h, json={
-    "incidentType": "OTHER", "severity": "NORMAL", "title": "Verify", "description": "Test"
+    "incidentType": "OTHER", "severity": "NORMAL", "title": "Verify", "description": "Test", "sellerId": 3
 })
 check("Incident creation", r7.status_code == 200, f"id={r7.json().get('id')}")
 

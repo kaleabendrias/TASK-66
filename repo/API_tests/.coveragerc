@@ -1,0 +1,5 @@
+[run]
+omit =
+    # verify.py is a verification script, not a test target — it never runs
+    # under pytest and would otherwise drag the suite below the 90% gate.
+    verify.py

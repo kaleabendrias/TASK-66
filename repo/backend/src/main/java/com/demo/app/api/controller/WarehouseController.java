@@ -32,7 +32,7 @@ public class WarehouseController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public ResponseEntity<WarehouseDto> create(@RequestBody WarehouseDto dto) {
+    public ResponseEntity<WarehouseDto> create(@jakarta.validation.Valid @RequestBody WarehouseDto dto) {
         Warehouse warehouse = Warehouse.builder()
                 .name(dto.name())
                 .code(dto.code())
@@ -44,7 +44,7 @@ public class WarehouseController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public ResponseEntity<WarehouseDto> update(@PathVariable Long id, @RequestBody WarehouseDto dto) {
+    public ResponseEntity<WarehouseDto> update(@PathVariable Long id, @jakarta.validation.Valid @RequestBody WarehouseDto dto) {
         Warehouse warehouse = Warehouse.builder()
                 .name(dto.name())
                 .code(dto.code())

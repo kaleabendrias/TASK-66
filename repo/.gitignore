@@ -63,3 +63,5 @@ tmp/
 
 # === Claude Code ===
 .claude/
+
+backend/uploads

@@ -139,9 +139,6 @@
                         <exclude>com/demo/app/domain/model/**</exclude>
                         <!-- Spring Data interfaces -->
                         <exclude>com/demo/app/persistence/repository/**</exclude>
-                        <!-- H2 cannot create PostgreSQL text[] columns; listing layer tested by API integration tests -->
-                        <exclude>com/demo/app/application/service/ListingService.class</exclude>
-                        <exclude>com/demo/app/api/controller/ListingController.class</exclude>
                     </excludes>
                 </configuration>
                 <executions>
@@ -166,8 +163,8 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <!-- All code measured except H2-incompatible listing layer.
-                                                 214 unit tests; remaining controller paths verified by 109+ API tests via TLS. -->
+                                            <!-- All non-trivial code measured (entities/models/repositories
+                                                 are excluded as Lombok/Spring Data only). -->
                                             <minimum>0.70</minimum>
                                         </limit>
                                     </limits>

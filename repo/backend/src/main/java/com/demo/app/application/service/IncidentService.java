@@ -1,10 +1,12 @@
 package com.demo.app.application.service;
 
+import com.demo.app.domain.enums.Role;
 import com.demo.app.domain.exception.ResourceNotFoundException;
 import com.demo.app.domain.model.Incident;
 import com.demo.app.domain.model.IncidentComment;
 import com.demo.app.persistence.entity.IncidentCommentEntity;
 import com.demo.app.persistence.entity.IncidentEntity;
+import com.demo.app.persistence.entity.UserEntity;
 import com.demo.app.persistence.repository.IncidentCommentRepository;
 import com.demo.app.persistence.repository.IncidentRepository;
 import com.demo.app.persistence.repository.UserRepository;
@@ -49,8 +51,17 @@ public class IncidentService {
             resolveHours = resolveHours / 2;
         }
 
-        if (sellerId != null && !userRepository.existsById(sellerId)) {
-            throw new IllegalArgumentException("sellerId does not reference an existing user: " + sellerId);
+        if (sellerId != null) {
+            // Risk analytics aggregates incidents by seller. If we let any
+            // user id slip in here, the score for non-sellers becomes
+            // meaningless and the seller-scoped windows are polluted.
+            UserEntity sellerUser = userRepository.findById(sellerId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "sellerId does not reference an existing user: " + sellerId));
+            if (sellerUser.getRole() != Role.SELLER) {
+                throw new IllegalArgumentException(
+                        "sellerId must reference a user with role SELLER, got " + sellerUser.getRole());
+            }
         }
 
         IncidentEntity entity = IncidentEntity.builder()

@@ -30,6 +30,14 @@ const SellerListingsPage: React.FC = () => {
     slug: '',
     summary: '',
     tags: '',
+    neighborhood: '',
+    latitude: '',
+    longitude: '',
+    price: '',
+    sqft: '',
+    layout: '',
+    availableFrom: '',
+    availableTo: '',
   });
 
   useEffect(() => {
@@ -72,14 +80,28 @@ const SellerListingsPage: React.FC = () => {
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean);
+      const numberOrNull = (v: string) => (v === '' ? null : Number(v));
+      const stringOrNull = (v: string) => (v.trim() === '' ? null : v.trim());
       await createListing({
         productId: parseInt(form.productId),
         title: form.title,
         slug: form.slug || slugify(form.title),
         summary: form.summary,
         tags,
+        neighborhood: stringOrNull(form.neighborhood),
+        latitude: numberOrNull(form.latitude),
+        longitude: numberOrNull(form.longitude),
+        price: numberOrNull(form.price),
+        sqft: numberOrNull(form.sqft),
+        layout: stringOrNull(form.layout),
+        availableFrom: stringOrNull(form.availableFrom),
+        availableTo: stringOrNull(form.availableTo),
       });
-      setForm({ productId: '', title: '', slug: '', summary: '', tags: '' });
+      setForm({
+        productId: '', title: '', slug: '', summary: '', tags: '',
+        neighborhood: '', latitude: '', longitude: '', price: '',
+        sqft: '', layout: '', availableFrom: '', availableTo: '',
+      });
       setShowForm(false);
       await loadData();
     } catch {
@@ -159,6 +181,101 @@ const SellerListingsPage: React.FC = () => {
                   placeholder="electronics, sale, new"
                 />
               </div>
+
+              <h4 style={{ marginTop: '1rem' }}>Discovery details</h4>
+              <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: 0 }}>
+                Optional but powers price/area/date filters in search.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Neighborhood</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    aria-label="Neighborhood"
+                    value={form.neighborhood}
+                    onChange={(e) => setForm({ ...form, neighborhood: e.target.value })}
+                    placeholder="Downtown"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Layout</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    aria-label="Layout"
+                    value={form.layout}
+                    onChange={(e) => setForm({ ...form, layout: e.target.value })}
+                    placeholder="2BR/1BA"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="form-input"
+                    aria-label="Price"
+                    value={form.price}
+                    onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Square footage</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    aria-label="Square footage"
+                    value={form.sqft}
+                    onChange={(e) => setForm({ ...form, sqft: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="form-input"
+                    aria-label="Latitude"
+                    value={form.latitude}
+                    onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    className="form-input"
+                    aria-label="Longitude"
+                    value={form.longitude}
+                    onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Available from</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    aria-label="Available from"
+                    value={form.availableFrom}
+                    onChange={(e) => setForm({ ...form, availableFrom: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Available to</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    aria-label="Available to"
+                    value={form.availableTo}
+                    onChange={(e) => setForm({ ...form, availableTo: e.target.value })}
+                  />
+                </div>
+              </div>
+
               <div className="form-actions">
                 <button
                   type="button"

@@ -5,6 +5,14 @@ import { getMyProfile, getPackagesByTier, getItemsByPackage } from '@/api/member
 import { useAuthStore } from '@/state/authStore';
 import { Listing, MemberProfile, BenefitItem } from '@/api/types';
 
+// Mirrors the checkout/pricing copy so buyers see the same non-stacking
+// semantics here that PricingService will actually apply at order time.
+interface ResolvedBenefits {
+  discountPercent: number | null;
+  freeShipping: boolean;
+  priorityPerks: string[];
+}
+
 const ListingDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { user, isAuthenticated } = useAuthStore();
@@ -13,7 +21,11 @@ const ListingDetailPage: React.FC = () => {
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [memberProfile, setMemberProfile] = useState<MemberProfile | null>(null);
-  const [discount, setDiscount] = useState<number | null>(null);
+  const [benefits, setBenefits] = useState<ResolvedBenefits>({
+    discountPercent: null,
+    freeShipping: false,
+    priorityPerks: [],
+  });
 
   useEffect(() => {
     if (!slug) return;
@@ -39,20 +51,35 @@ const ListingDetailPage: React.FC = () => {
         const profile = await getMyProfile();
         setMemberProfile(profile);
         const packages = await getPackagesByTier(profile.tierId);
+
+        // Collect the union of every benefit this member's tier exposes
+        // across the currently active packages, so the listing page can
+        // show the same surface the checkout would see. We still only
+        // ever apply ONE (the best) at order time — the backend's
+        // PricingService enforces that and the copy below explains it.
+        let bestDiscount: number | null = null;
+        let freeShipping = false;
+        const priorityPerks: string[] = [];
+
         for (const pkg of packages) {
           if (!pkg.active) continue;
           const items = await getItemsByPackage(pkg.id);
-          const discountItem = items.find(
-            (i: BenefitItem) => i.benefitType === 'DISCOUNT' || i.benefitType.toLowerCase().includes('discount')
-          );
-          if (discountItem) {
-            const val = parseFloat(discountItem.benefitValue);
-            if (!isNaN(val) && val > 0) {
-              setDiscount(val);
-              break;
+          for (const item of items as BenefitItem[]) {
+            const type = (item.benefitType || '').toUpperCase();
+            if (type === 'DISCOUNT') {
+              const val = parseFloat(item.benefitValue);
+              if (!isNaN(val) && val > 0 && (bestDiscount === null || val > bestDiscount)) {
+                bestDiscount = val;
+              }
+            } else if (type === 'FREE_SHIPPING') {
+              freeShipping = true;
+            } else if (type === 'PRIORITY_SUPPORT' || type === 'EXCLUSIVE_ACCESS') {
+              priorityPerks.push(type === 'PRIORITY_SUPPORT' ? 'Priority support' : 'Exclusive access');
             }
           }
         }
+
+        setBenefits({ discountPercent: bestDiscount, freeShipping, priorityPerks });
       } catch {
         // Member profile may not exist, that's fine
       }
@@ -158,17 +185,50 @@ const ListingDetailPage: React.FC = () => {
             )}
           </div>
 
-          {memberProfile && discount !== null && discount > 0 && (
+          {memberProfile && (
+            benefits.discountPercent !== null ||
+            benefits.freeShipping ||
+            benefits.priorityPerks.length > 0
+          ) && (
             <div className="card mt-md" style={{ border: '1px solid var(--success)', background: 'var(--success-light)' }}>
               <div className="card-body">
-                <strong>Your tier: {memberProfile.tierName} - {discount}% discount applies</strong>
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <strong>Your tier: {memberProfile.tierName}</strong>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.9rem' }}>
+                  {benefits.discountPercent !== null && (
+                    <li>
+                      <strong>{benefits.discountPercent}% tier discount</strong> on the line subtotal.
+                    </li>
+                  )}
+                  {benefits.freeShipping && (
+                    <li>
+                      <strong>Free shipping</strong> eligible — the shipping fee is waived at checkout.
+                    </li>
+                  )}
+                  {benefits.priorityPerks.map((perk) => (
+                    <li key={perk}>{perk}</li>
+                  ))}
+                </ul>
+                <p className="text-muted mt-sm" style={{ fontSize: '0.78rem', marginBottom: 0 }}>
+                  Final totals are computed server-side by PricingService at order time.
+                </p>
               </div>
             </div>
           )}
 
-          <p className="text-muted mt-md" style={{ fontSize: '0.8125rem' }}>
-            Benefits are non-stackable. Only one benefit applies per transaction.
-          </p>
+          {/* Explicit non-stacking copy. The server's PricingService picks
+              ONE discount (the highest) and ONE item per exclusion group,
+              so at most one DISCOUNT and one FREE_SHIPPING can ever
+              combine per order. We spell it out here so buyers don't
+              expect a 15% discount AND free shipping to compose beyond
+              the server's actual rules. */}
+          <div className="alert alert-info mt-md" style={{ fontSize: '0.8125rem' }}>
+            <strong>Benefits do not stack.</strong> At most one <em>discount</em> applies per
+            transaction — if several are available the highest one wins. Within any other
+            exclusion group (e.g. free shipping), a single benefit is selected. The checkout
+            total you see at order time is the authoritative number.
+          </div>
 
           <div className="form-actions" style={{ justifyContent: 'flex-start' }}>
             {canReserve && listing.status === 'PUBLISHED' && (

@@ -74,21 +74,25 @@ class ControllerIntegrationTest {
     // --- Incident endpoints ---
     @Test @DisplayName("POST /incidents creates with enum-validated type")
     void testCreateIncidentWithEnum() throws Exception {
+        Long sellerId = userRepository.findByUsername("ctrl_seller").orElseThrow().getId();
         mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
-                                "title", "Test", "description", "Desc"))))
+                                "title", "Test", "description", "Desc",
+                                "sellerId", sellerId))))
                 .andExpect(status().isOk());
     }
 
     @Test @DisplayName("POST /incidents rejects invalid enum type")
     void testCreateIncidentInvalidType() throws Exception {
+        Long sellerId = userRepository.findByUsername("ctrl_seller").orElseThrow().getId();
         mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "incidentType", "INVALID", "severity", "NORMAL",
-                                "title", "Test", "description", "Desc"))))
+                                "title", "Test", "description", "Desc",
+                                "sellerId", sellerId))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -111,9 +115,23 @@ class ControllerIntegrationTest {
 
     @Test @DisplayName("POST /appeals creates valid appeal")
     void testAppealCreation() throws Exception {
+        // Create an incident the appeal can reference (existence check now mandatory).
+        Long sellerId = userRepository.findByUsername("ctrl_seller").orElseThrow().getId();
+        String incidentBody = objectMapper.writeValueAsString(Map.of(
+                "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
+                "title", "Appeal source", "description", "for appeal test",
+                "sellerId", sellerId));
+        String incidentResp = mockMvc.perform(post("/api/incidents")
+                        .header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(incidentBody))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Long incidentId = ((Number) objectMapper.readValue(incidentResp, Map.class).get("id")).longValue();
+
         mockMvc.perform(post("/api/appeals").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"relatedEntityType\":\"PRODUCT\",\"relatedEntityId\":1,\"reason\":\"Testing\"}"))
+                        .content("{\"relatedEntityType\":\"INCIDENT\",\"relatedEntityId\":" + incidentId + ",\"reason\":\"Testing\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
     }

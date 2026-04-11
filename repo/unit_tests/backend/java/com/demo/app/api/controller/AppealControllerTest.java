@@ -310,4 +310,46 @@ class AppealControllerTest {
                         .header("Authorization", "Bearer " + memberToken))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("POST /{id}/evidence enforces the 5-file boundary per appeal")
+    void uploadEvidence_enforcesFiveFileBoundary() throws Exception {
+        // First five uploads must succeed.
+        for (int i = 1; i <= 5; i++) {
+            MockMultipartFile file = new MockMultipartFile(
+                    "file", "evidence-" + i + ".jpg", "image/jpeg", jpegBytes());
+            mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                            .file(file)
+                            .header("Authorization", "Bearer " + memberToken))
+                    .andExpect(status().isOk());
+        }
+        // The sixth upload must be rejected with a CONFLICT (409) — the
+        // 5-files-per-appeal cap is a hard business invariant.
+        MockMultipartFile sixth = new MockMultipartFile(
+                "file", "evidence-6.jpg", "image/jpeg", jpegBytes());
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(sixth)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("POST /appeals/{id}/review rejects malformed payloads via Bean Validation")
+    void review_rejectsBlankReviewNotes() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of("status", "APPROVED", "reviewNotes", ""));
+        mockMvc.perform(post("/api/appeals/" + appeal.getId() + "/review")
+                        .header("Authorization", "Bearer " + moderatorToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /appeals/{id}/review rejects unsupported status verbs via Bean Validation")
+    void review_rejectsUnknownStatus() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of("status", "MAYBE", "reviewNotes", "ok"));
+        mockMvc.perform(post("/api/appeals/" + appeal.getId() + "/review")
+                        .header("Authorization", "Bearer " + moderatorToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+    }
 }

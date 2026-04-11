@@ -75,7 +75,7 @@ public class AppealController {
     @PostMapping("/{id}/review")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMINISTRATOR')")
     @Audited(entityType = "APPEAL", action = "REVIEW")
-    public ResponseEntity<AppealDto> review(@PathVariable Long id, @RequestBody ReviewAppealRequest request) {
+    public ResponseEntity<AppealDto> review(@PathVariable Long id, @Valid @RequestBody ReviewAppealRequest request) {
         Long reviewerId = getCurrentUserId();
         Appeal appeal = appealService.review(id, reviewerId, request.status(), request.reviewNotes());
         return ResponseEntity.ok(toDto(appeal));

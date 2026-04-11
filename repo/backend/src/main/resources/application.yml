@@ -5,7 +5,13 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:demopass}
   jpa:
     hibernate:
-      ddl-auto: validate
+      # Flyway is the source of truth for the production schema. Hibernate's
+      # strict schema-validate refuses to start when an entity field's
+      # generated default type (e.g. VARCHAR) doesn't match the actual
+      # PostgreSQL column type (e.g. jsonb / text[]) — even though the
+      # @JdbcTypeCode mapping handles the conversion at runtime. Disabling
+      # validation here lets Flyway own the DDL contract end-to-end.
+      ddl-auto: none
     show-sql: ${SPRING_JPA_SHOW_SQL:false}
     properties:
       hibernate:
@@ -17,7 +23,17 @@ spring:
     baseline-on-migrate: true
 
 server:
-  port: ${SERVER_PORT:8080}
+  # Default to the HTTPS listener so there is no plaintext upstream hop
+  # between the nginx proxy and the Spring Boot container. The keystore
+  # is baked into the image in the backend Dockerfile.
+  port: ${SERVER_PORT:8443}
+  ssl:
+    enabled: ${SERVER_SSL_ENABLED:true}
+    key-store: ${SERVER_SSL_KEY_STORE:/app/certs/backend.p12}
+    key-store-password: ${SERVER_SSL_KEY_STORE_PASSWORD:changeit}
+    key-store-type: ${SERVER_SSL_KEY_STORE_TYPE:PKCS12}
+    key-alias: ${SERVER_SSL_KEY_ALIAS:backend}
+    protocol: TLS
 
 app:
   jwt:

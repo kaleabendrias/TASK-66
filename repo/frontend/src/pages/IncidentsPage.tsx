@@ -24,7 +24,7 @@ const IncidentsPage: React.FC = () => {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ incidentType: 'ORDER_ISSUE', severity: 'NORMAL', title: '', description: '', address: '', crossStreet: '' });
+  const [form, setForm] = useState({ incidentType: 'ORDER_ISSUE', severity: 'NORMAL', title: '', description: '', address: '', crossStreet: '', sellerId: '' });
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -41,6 +41,18 @@ const IncidentsPage: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    // sellerId is required for the risk analytics engine to attribute the
+    // incident to the correct seller's 30-day repeat-incident window. Without
+    // it, escalations against a seller would not roll up into their score.
+    if (!form.sellerId.trim()) {
+      setError('Seller ID is required so risk analytics can attribute the incident.');
+      return;
+    }
+    const sellerIdNum = Number(form.sellerId);
+    if (!Number.isFinite(sellerIdNum) || sellerIdNum <= 0) {
+      setError('Seller ID must be a positive number.');
+      return;
+    }
     try {
       await createIncident({
         incidentType: form.incidentType,
@@ -49,9 +61,10 @@ const IncidentsPage: React.FC = () => {
         description: form.description,
         address: form.address || undefined,
         crossStreet: form.crossStreet || undefined,
+        sellerId: sellerIdNum,
       });
       setShowForm(false);
-      setForm({ incidentType: 'ORDER_ISSUE', severity: 'NORMAL', title: '', description: '', address: '', crossStreet: '' });
+      setForm({ incidentType: 'ORDER_ISSUE', severity: 'NORMAL', title: '', description: '', address: '', crossStreet: '', sellerId: '' });
       load();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create incident');
@@ -106,6 +119,22 @@ const IncidentsPage: React.FC = () => {
               <div className="form-group">
                 <label className="form-label">Description</label>
                 <textarea className="form-input" rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Seller ID (required)</label>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="1"
+                  aria-label="Seller ID"
+                  placeholder="User ID of the seller this incident is filed against"
+                  value={form.sellerId}
+                  onChange={(e) => setForm({ ...form, sellerId: e.target.value })}
+                  required
+                />
+                <small className="text-muted">
+                  Drives seller-scoped risk analytics. Must reference an existing user.
+                </small>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">

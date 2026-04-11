@@ -7,17 +7,21 @@ import com.demo.app.domain.enums.OrderStatus;
 import com.demo.app.domain.exception.OwnershipViolationException;
 import com.demo.app.domain.model.Order;
 import com.demo.app.persistence.repository.UserRepository;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
+@Slf4j
 public class OrderController {
 
     private final OrderService orderService;
@@ -50,15 +54,26 @@ public class OrderController {
 
     @PostMapping
     @Audited(entityType = "ORDER", action = "PLACE")
-    public ResponseEntity<OrderDto> placeOrder(@RequestBody OrderDto dto) {
+    public ResponseEntity<OrderDto> placeOrder(@Valid @RequestBody OrderDto dto) {
         Long authenticatedUserId = getCurrentUserId();
-        Order order = Order.builder()
-                .buyerId(authenticatedUserId)
-                .productId(dto.productId())
-                .quantity(dto.quantity())
-                .totalPrice(dto.totalPrice())
-                .build();
-        return ResponseEntity.ok(toDto(orderService.placeOrder(order)));
+        Order placed = orderService.placeOrder(
+                authenticatedUserId,
+                dto.productId(),
+                dto.quantity(),
+                dto.totalPrice(),
+                dto.reservationId(),
+                dto.inventoryItemId(),
+                dto.idempotencyKey());
+        BigDecimal clientTotal = dto.totalPrice();
+        if (clientTotal != null && placed.getTotalPrice() != null
+                && clientTotal.compareTo(placed.getTotalPrice()) != 0) {
+            // Visible signal that a client tried to influence price; the
+            // server already overrode it but we want this in the logs so
+            // operators can spot tampering attempts.
+            log.warn("Order {}: client-supplied total {} ignored, server resolved {}",
+                    placed.getId(), clientTotal, placed.getTotalPrice());
+        }
+        return ResponseEntity.ok(toDto(placed));
     }
 
     @PatchMapping("/{id}/status")
@@ -74,7 +89,8 @@ public class OrderController {
             }
         }
 
-        return ResponseEntity.ok(toDto(orderService.updateStatus(id, status)));
+        Long actorId = getCurrentUserId();
+        return ResponseEntity.ok(toDto(orderService.updateStatus(id, status, actorId)));
     }
 
     private void enforceOwnership(Long ownerId) {
@@ -113,7 +129,10 @@ public class OrderController {
                 order.getRefundReason(),
                 order.isReconciled(),
                 order.getReconciledAt(),
-                order.getReconciliationRef()
+                order.getReconciliationRef(),
+                order.getReservationId(),
+                null,
+                null
         );
     }
 }

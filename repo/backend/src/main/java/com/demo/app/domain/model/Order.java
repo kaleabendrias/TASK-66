@@ -26,4 +26,5 @@ public class Order {
     private boolean reconciled;
     private LocalDateTime reconciledAt;
     private String reconciliationRef;
+    private Long reservationId;
 }

@@ -53,15 +53,23 @@ class FulfillmentServiceTest {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private InventoryItemRepository inventoryItemRepository;
+
+    @Autowired
+    private InventoryMovementRepository inventoryMovementRepository;
+
     private UserEntity user;
     private WarehouseEntity warehouse;
     private OrderEntity order;
+    private ProductEntity product;
+    private InventoryItemEntity inventoryItem;
 
     @BeforeEach
     void setUp() {
-        user = userRepository.save(TestFixtures.user("fulfilluser", Role.WAREHOUSE_STAFF));
+        user = userRepository.save(TestFixtures.user("fulfilluser", Role.ADMINISTRATOR));
         CategoryEntity category = categoryRepository.save(TestFixtures.category("Gadgets"));
-        ProductEntity product = productRepository.save(
+        product = productRepository.save(
                 TestFixtures.product("Phone", new BigDecimal("699.99"), category, user));
 
         warehouse = warehouseRepository.save(WarehouseEntity.builder()
@@ -72,12 +80,24 @@ class FulfillmentServiceTest {
                 .createdAt(LocalDateTime.now())
                 .build());
 
+        // Compensation flow needs an inventory_item row for (product, warehouse)
+        // because the rollback movement points at it.
         LocalDateTime now = LocalDateTime.now();
+        inventoryItem = inventoryItemRepository.save(InventoryItemEntity.builder()
+                .productId(product.getId())
+                .warehouseId(warehouse.getId())
+                .quantityOnHand(50)
+                .quantityReserved(0)
+                .lowStockThreshold(5)
+                .createdAt(now)
+                .updatedAt(now)
+                .build());
+
         order = orderRepository.save(OrderEntity.builder()
                 .buyer(user)
                 .product(product)
-                .quantity(1)
-                .totalPrice(new BigDecimal("699.99"))
+                .quantity(3)
+                .totalPrice(new BigDecimal("2099.97"))
                 .status(OrderStatus.CONFIRMED)
                 .tenderType("INTERNAL_CREDIT")
                 .createdAt(now)
@@ -125,26 +145,57 @@ class FulfillmentServiceTest {
     }
 
     @Test
-    @DisplayName("cancelFulfillment from PENDING succeeds")
+    @DisplayName("cancelFulfillment from PENDING succeeds and logs a zero-quantity compensation movement")
     void testCancelFulfillment_fromPending_succeeds() {
         Fulfillment fulfillment = fulfillmentService.create(order.getId(), warehouse.getId(), "idem-cancel");
 
-        Fulfillment cancelled = fulfillmentService.cancelFulfillment(fulfillment.getId());
+        Fulfillment cancelled = fulfillmentService.cancelFulfillment(fulfillment.getId(), user.getId(), "test reason");
 
         assertEquals(FulfillmentStatus.CANCELLED, cancelled.getStatus());
+
+        List<InventoryMovementEntity> movements = inventoryMovementRepository
+                .findByInventoryItemIdOrderByCreatedAtDesc(inventoryItem.getId());
+        assertFalse(movements.isEmpty());
+        InventoryMovementEntity comp = movements.get(0);
+        assertEquals("RETURN", comp.getMovementType());
+        assertEquals(0, comp.getQuantity()); // PENDING never deducted
+        assertEquals(user.getId(), comp.getOperatorId());
+        assertTrue(comp.getReferenceDocument().contains("fulfillment-cancel:" + fulfillment.getId()));
     }
 
     @Test
-    @DisplayName("cancelFulfillment from SHIPPED throws RuntimeException")
-    void testCancelFulfillment_fromShipped_throws() {
-        Fulfillment fulfillment = fulfillmentService.create(order.getId(), warehouse.getId(), "idem-cancel-ship");
+    @DisplayName("cancelFulfillment from PICKING restores inventory on hand and logs a RETURN movement")
+    void testCancelFulfillment_fromPicking_restoresInventory() {
+        Fulfillment fulfillment = fulfillmentService.create(order.getId(), warehouse.getId(), "idem-cancel-picking");
+        fulfillmentService.advanceStep(fulfillment.getId(), "PICK", user.getId(), null);
+
+        int before = inventoryItemRepository.findById(inventoryItem.getId()).orElseThrow().getQuantityOnHand();
+        Fulfillment cancelled = fulfillmentService.cancelFulfillment(fulfillment.getId(), user.getId(), "operational");
+
+        assertEquals(FulfillmentStatus.CANCELLED, cancelled.getStatus());
+        int after = inventoryItemRepository.findById(inventoryItem.getId()).orElseThrow().getQuantityOnHand();
+        assertEquals(before + order.getQuantity(), after);
+
+        List<InventoryMovementEntity> movements = inventoryMovementRepository
+                .findByInventoryItemIdOrderByCreatedAtDesc(inventoryItem.getId());
+        InventoryMovementEntity comp = movements.get(0);
+        assertEquals("RETURN", comp.getMovementType());
+        assertEquals(order.getQuantity(), comp.getQuantity());
+        assertEquals(after, comp.getBalanceAfter());
+    }
+
+    @Test
+    @DisplayName("cancelFulfillment from DELIVERED throws because deliveries cannot be compensated by rollback")
+    void testCancelFulfillment_fromDelivered_throws() {
+        Fulfillment fulfillment = fulfillmentService.create(order.getId(), warehouse.getId(), "idem-cancel-delivered");
 
         fulfillmentService.advanceStep(fulfillment.getId(), "PICK", user.getId(), null);
         fulfillmentService.advanceStep(fulfillment.getId(), "PACK", user.getId(), null);
         fulfillmentService.advanceStep(fulfillment.getId(), "SHIP", user.getId(), null);
+        fulfillmentService.advanceStep(fulfillment.getId(), "DELIVER", user.getId(), null);
 
-        assertThrows(RuntimeException.class,
-                () -> fulfillmentService.cancelFulfillment(fulfillment.getId()));
+        assertThrows(IllegalStateException.class,
+                () -> fulfillmentService.cancelFulfillment(fulfillment.getId(), user.getId(), null));
     }
 
     @Test

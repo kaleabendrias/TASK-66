@@ -43,4 +43,10 @@ describe('IncidentsPage', () => {
     expect(await screen.findByPlaceholderText('e.g. 123 Main St')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('e.g. 5th Ave')).toBeInTheDocument();
   });
+
+  it('exposes a Seller ID field on the create form', async () => {
+    render(<MemoryRouter><IncidentsPage /></MemoryRouter>);
+    (await screen.findByText('Report Incident')).click();
+    expect(await screen.findByLabelText(/seller id/i)).toBeInTheDocument();
+  });
 });

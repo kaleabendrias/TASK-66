@@ -12,5 +12,9 @@ public record CreateIncidentRequest(
         @NotBlank String description,
         String address,
         String crossStreet,
-        Long sellerId) {
+        // Required: the risk analytics engine attributes incidents to a
+        // seller's 30-day window. A null sellerId would silently degrade
+        // seller-scoped scoring, so we reject the request at the boundary.
+        @NotNull Long sellerId) {
 }
+

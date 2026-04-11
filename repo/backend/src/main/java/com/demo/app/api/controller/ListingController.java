@@ -54,9 +54,17 @@ public class ListingController {
             @RequestParam(required = false) java.math.BigDecimal maxPrice,
             @RequestParam(required = false) Integer minSqft,
             @RequestParam(required = false) Integer maxSqft,
-            @RequestParam(required = false) String layout) {
-        List<ListingDto> listings = listingService.searchAdvanced(q, neighborhood, lat, lng, radiusMiles,
-                availableAfter, availableBefore, minPrice, maxPrice, minSqft, maxSqft, layout).stream()
+            @RequestParam(required = false) String layout,
+            // Tags and sort are now first-class server params so the
+            // frontend can never silently fall back to local sorting that
+            // diverges from the canonical backend rank order.
+            @RequestParam(required = false) List<String> tags,
+            @RequestParam(required = false) com.demo.app.application.service.ListingService.SortMode sort) {
+        List<ListingDto> listings = listingService.searchAdvanced(
+                        q, neighborhood, lat, lng, radiusMiles,
+                        availableAfter, availableBefore, minPrice, maxPrice, minSqft, maxSqft, layout,
+                        tags, sort)
+                .stream()
                 .map(this::toDto)
                 .toList();
         return ResponseEntity.ok(listings);
@@ -64,7 +72,7 @@ public class ListingController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
-    public ResponseEntity<ListingDto> create(@RequestBody CreateListingRequest request) {
+    public ResponseEntity<ListingDto> create(@jakarta.validation.Valid @RequestBody CreateListingRequest request) {
         // Verify seller owns the product
         if (!isPrivileged()) {
             Long currentUserId = getCurrentUserId();
@@ -74,30 +82,35 @@ public class ListingController {
             }
         }
 
-        Listing listing = Listing.builder()
-                .productId(request.productId())
-                .title(request.title())
-                .slug(request.slug())
-                .summary(request.summary())
-                .tags(request.tags() != null ? Arrays.asList(request.tags()) : List.of())
-                .featured(request.featured())
-                .build();
+        Listing listing = listingFromRequest(request);
         return ResponseEntity.ok(toDto(listingService.create(listing)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
-    public ResponseEntity<ListingDto> update(@PathVariable Long id, @RequestBody CreateListingRequest request) {
+    public ResponseEntity<ListingDto> update(@PathVariable Long id, @jakarta.validation.Valid @RequestBody CreateListingRequest request) {
         enforceListingOwnership(id);
-        Listing listing = Listing.builder()
+        Listing listing = listingFromRequest(request);
+        return ResponseEntity.ok(toDto(listingService.update(id, listing)));
+    }
+
+    private Listing listingFromRequest(CreateListingRequest request) {
+        return Listing.builder()
                 .productId(request.productId())
                 .title(request.title())
                 .slug(request.slug())
                 .summary(request.summary())
                 .tags(request.tags() != null ? Arrays.asList(request.tags()) : List.of())
                 .featured(request.featured())
+                .neighborhood(request.neighborhood())
+                .latitude(request.latitude())
+                .longitude(request.longitude())
+                .price(request.price())
+                .sqft(request.sqft())
+                .layout(request.layout())
+                .availableFrom(request.availableFrom())
+                .availableTo(request.availableTo())
                 .build();
-        return ResponseEntity.ok(toDto(listingService.update(id, listing)));
     }
 
     @PostMapping("/{id}/publish")

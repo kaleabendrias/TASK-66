@@ -6,7 +6,9 @@ import com.demo.app.api.dto.OutboundRequest;
 import com.demo.app.api.dto.StocktakeRequest;
 import com.demo.app.application.service.InventoryService;
 import com.demo.app.application.service.ProductService;
+import com.demo.app.domain.exception.OwnershipViolationException;
 import com.demo.app.domain.model.InventoryItem;
+import com.demo.app.domain.model.Product;
 import com.demo.app.infrastructure.audit.Audited;
 import com.demo.app.persistence.repository.UserRepository;
 import com.demo.app.persistence.repository.WarehouseRepository;
@@ -34,9 +36,9 @@ public class InventoryController {
         // Seller scoping: sellers can only see inventory for their own products
         if (isSeller()) {
             Long currentUserId = getCurrentUserId();
-            com.demo.app.domain.model.Product product = productService.getById(productId);
+            Product product = productService.getById(productId);
             if (!product.getSellerId().equals(currentUserId)) {
-                throw new com.demo.app.domain.exception.OwnershipViolationException(
+                throw new OwnershipViolationException(
                         "Sellers can only view inventory for their own products");
             }
         }
@@ -56,7 +58,7 @@ public class InventoryController {
             Long currentUserId = getCurrentUserId();
             items = items.stream().filter(i -> {
                 try {
-                    com.demo.app.domain.model.Product p = productService.getById(i.productId());
+                    Product p = productService.getById(i.productId());
                     return p.getSellerId().equals(currentUserId);
                 } catch (Exception e) { return false; }
             }).toList();
@@ -65,13 +67,15 @@ public class InventoryController {
     }
 
     @PostMapping("/adjust")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'SELLER', 'ADMINISTRATOR')")
     public ResponseEntity<InventoryItemDto> adjustStock(@RequestBody Map<String, Object> body) {
         Long inventoryItemId = ((Number) body.get("inventoryItemId")).longValue();
         int quantityChange = ((Number) body.get("quantityChange")).intValue();
         String movementType = (String) body.get("movementType");
         String referenceDocument = (String) body.get("referenceDocument");
         String notes = (String) body.get("notes");
+
+        enforceSellerScope(inventoryItemId);
 
         Long operatorId = getCurrentUserId();
 
@@ -81,9 +85,10 @@ public class InventoryController {
     }
 
     @PostMapping("/inbound")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'SELLER', 'ADMINISTRATOR')")
     @Audited(entityType = "INVENTORY", action = "INBOUND")
     public ResponseEntity<InventoryItemDto> recordInbound(@RequestBody @jakarta.validation.Valid InboundRequest request) {
+        enforceSellerScope(request.inventoryItemId());
         Long operatorId = getCurrentUserId();
         InventoryItem item = inventoryService.adjustStock(
                 request.inventoryItemId(), request.quantity(), "INBOUND",
@@ -92,9 +97,10 @@ public class InventoryController {
     }
 
     @PostMapping("/outbound")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'SELLER', 'ADMINISTRATOR')")
     @Audited(entityType = "INVENTORY", action = "OUTBOUND")
     public ResponseEntity<InventoryItemDto> recordOutbound(@RequestBody @jakarta.validation.Valid OutboundRequest request) {
+        enforceSellerScope(request.inventoryItemId());
         Long operatorId = getCurrentUserId();
         InventoryItem item = inventoryService.adjustStock(
                 request.inventoryItemId(), -request.quantity(), "OUTBOUND",
@@ -103,17 +109,41 @@ public class InventoryController {
     }
 
     @PostMapping("/stocktake")
-    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'SELLER', 'ADMINISTRATOR')")
     @Audited(entityType = "INVENTORY", action = "STOCKTAKE")
     public ResponseEntity<InventoryItemDto> recordStocktake(@RequestBody @jakarta.validation.Valid StocktakeRequest request) {
+        // Stocktake addresses a (productId, warehouseId) pair, so scope by product directly.
+        if (isSeller()) {
+            Product product = productService.getById(request.productId());
+            if (!product.getSellerId().equals(getCurrentUserId())) {
+                throw new OwnershipViolationException(
+                        "Sellers can only stocktake their own products");
+            }
+        }
         Long operatorId = getCurrentUserId();
-        // Stocktake: set absolute quantity, compute delta
         InventoryItem current = inventoryService.getByProductAndWarehouse(request.productId(), request.warehouseId());
         int delta = request.countedQuantity() - current.getQuantityOnHand();
         InventoryItem item = inventoryService.adjustStock(
                 current.getId(), delta, "STOCKTAKE",
                 request.referenceDocument(), operatorId, "Stocktake: counted=" + request.countedQuantity());
         return ResponseEntity.ok(toDto(item));
+    }
+
+    /**
+     * Object-level enforcement: sellers may only mutate inventory rows whose
+     * underlying product is their own. Admins and warehouse staff bypass this
+     * check (their role @PreAuthorize already gates the call).
+     */
+    private void enforceSellerScope(Long inventoryItemId) {
+        if (!isSeller()) {
+            return;
+        }
+        InventoryItem item = inventoryService.getById(inventoryItemId);
+        Product product = productService.getById(item.getProductId());
+        if (product.getSellerId() == null || !product.getSellerId().equals(getCurrentUserId())) {
+            throw new OwnershipViolationException(
+                    "Sellers can only modify inventory for their own products");
+        }
     }
 
     private boolean isSeller() {

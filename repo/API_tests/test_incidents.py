@@ -3,8 +3,13 @@ import requests
 from conftest import BASE_URL, auth_header
 
 
-def _create_incident(token, base_url):
-    """Helper to create a test incident."""
+def _create_incident(token, base_url, seller_id=3):
+    """Helper to create a test incident.
+
+    sellerId defaults to 3, which corresponds to the seeded ``seller`` user
+    in V2__seed_data.sql. The backend now requires sellerId on creation —
+    risk analytics needs the linkage to compute seller-scoped scores.
+    """
     resp = requests.post(
         f"{base_url}/incidents",
         json={
@@ -12,10 +17,11 @@ def _create_incident(token, base_url):
             "severity": "HIGH",
             "title": "Test incident",
             "description": "Created by integration test",
+            "sellerId": seller_id,
         },
         headers=auth_header(token),
     )
-    assert resp.status_code in (200, 201)
+    assert resp.status_code in (200, 201), resp.text
     return resp.json()
 
 

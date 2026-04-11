@@ -71,6 +71,13 @@ public class OrderEntity {
     @Column(name = "reconciliation_ref", length = 100)
     private String reconciliationRef;
 
+    // The stock_reservation row that backs this order. Every PLACED order is
+    // either created with a referenced HELD reservation or has one minted on
+    // its behalf, so this is the contract handle the cancel/fail compensation
+    // flow uses to release stock.
+    @Column(name = "reservation_id")
+    private Long reservationId;
+
     public Order toModel() {
         return Order.builder()
                 .id(id)
@@ -85,6 +92,7 @@ public class OrderEntity {
                 .reconciled(reconciled)
                 .reconciledAt(reconciledAt)
                 .reconciliationRef(reconciliationRef)
+                .reservationId(reservationId)
                 .build();
     }
 }

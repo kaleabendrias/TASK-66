@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { to: '/orders', label: 'Orders' },
   { to: '/my-listings', label: 'My Listings', roles: ['SELLER', 'ADMINISTRATOR'] },
   { to: '/inventory', label: 'Inventory', roles: ['SELLER', 'WAREHOUSE_STAFF', 'ADMINISTRATOR'] },
+  { to: '/reservations', label: 'My Reservations', roles: ['MEMBER', 'SELLER', 'WAREHOUSE_STAFF', 'MODERATOR', 'ADMINISTRATOR'] },
   { to: '/fulfillment', label: 'Fulfillment', roles: ['WAREHOUSE_STAFF', 'ADMINISTRATOR'] },
   { to: '/profile', label: 'My Profile' },
   { to: '/incidents', label: 'Incidents' },

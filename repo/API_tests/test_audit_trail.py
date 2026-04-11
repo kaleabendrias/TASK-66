@@ -50,7 +50,7 @@ class TestAuditTrail:
         resp = requests.post(
             f"{base_url}/incidents",
             headers=mh,
-            json={"incidentType": "OTHER", "severity": "LOW", "title": "Audit test", "description": "Audit"},
+            json={"incidentType": "OTHER", "severity": "LOW", "title": "Audit test", "description": "Audit", "sellerId": 3},
         )
         assert resp.status_code == 200
         iid = resp.json()["id"]

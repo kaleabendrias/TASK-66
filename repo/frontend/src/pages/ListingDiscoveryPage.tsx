@@ -1,11 +1,22 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { getListings, searchListings, ListingSearchParams } from '@/api/listings';
+import { getListings, searchListings, ListingSearchParams, SortMode } from '@/api/listings';
 import { getCategories } from '@/api/categories';
 import { Listing, Category } from '@/api/types';
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
 const MAX_RECENT = 20;
+
+// UI sort key -> canonical server SortMode. Kept as an explicit table
+// so the dropdown can never drift out of sync with the backend enum.
+const SORT_MODE_MAP: Record<string, SortMode> = {
+  newest: 'AVAILABLE_FROM_DESC',
+  price_asc: 'PRICE_ASC',
+  price_desc: 'PRICE_DESC',
+  popular: 'WEEKLY_VIEWS_DESC',
+  distance: 'DISTANCE',
+  relevance: 'RELEVANCE',
+};
 
 const ListingDiscoveryPage: React.FC = () => {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -68,12 +79,8 @@ const ListingDiscoveryPage: React.FC = () => {
     });
   }, []);
 
-  const handleSearch = async (query?: string) => {
-    const q = query ?? searchInput;
-    setSearchQuery(q);
-    if (q.trim()) addRecentSearch(q.trim());
-    setLoading(true);
-    try {
+  const buildSearchParams = useCallback(
+    (q: string): ListingSearchParams => {
       const params: ListingSearchParams = {};
       if (q.trim()) params.q = q.trim();
       if (filters.neighborhood) params.neighborhood = filters.neighborhood;
@@ -89,8 +96,33 @@ const ListingDiscoveryPage: React.FC = () => {
       if (filters.layout) params.layout = filters.layout;
       if (filters.availableAfter) params.availableAfter = filters.availableAfter;
       if (filters.availableBefore) params.availableBefore = filters.availableBefore;
-      const hasParams = Object.keys(params).length > 0;
-      const data = hasParams ? await searchListings(params) : await getListings();
+
+      // Tags are a server-side filter — `category` picks a canonical tag
+      // and the free-text `tag` box adds one more. Both are passed to
+      // the backend as `tags=...&tags=...` so the rank/order returned by
+      // the server already reflects them.
+      const tags: string[] = [];
+      if (filters.category) tags.push(filters.category);
+      if (filters.tag.trim()) tags.push(filters.tag.trim());
+      if (tags.length > 0) params.tags = tags;
+
+      // Sort is also server-authoritative — we always send a SortMode
+      // so the server never has to guess, and we never re-sort locally.
+      params.sort = SORT_MODE_MAP[sortBy] ?? 'RELEVANCE';
+
+      return params;
+    },
+    [filters, sortBy]
+  );
+
+  const handleSearch = async (query?: string) => {
+    const q = query ?? searchInput;
+    setSearchQuery(q);
+    if (q.trim()) addRecentSearch(q.trim());
+    setLoading(true);
+    try {
+      const params = buildSearchParams(q);
+      const data = await searchListings(params);
       setListings(data);
     } catch {
       setError('Search failed');
@@ -98,6 +130,14 @@ const ListingDiscoveryPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Re-hit the server whenever sort or tags change so the user sees
+  // the canonical server-ranked list, not a locally re-shuffled view.
+  useEffect(() => {
+    if (loading && listings.length === 0) return;
+    handleSearch(searchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortBy, filters.category, filters.tag]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,58 +149,17 @@ const ListingDiscoveryPage: React.FC = () => {
     handleSearch(query);
   };
 
+  // The backend already applies tags, sort, and every price/sqft/layout
+  // filter (see ListingController.search / ListingService.searchAdvanced).
+  // The only thing we still enforce locally is the "published only"
+  // toggle, which is a display preference (the server always returns
+  // published listings via /listings/search, but the unauthenticated
+  // getListings() call at page load may return drafts in some dev
+  // fixtures). Everything else — rank, tag filter — is trusted as-is.
   const filteredAndSorted = useMemo(() => {
-    let result = [...listings];
-
-    if (filters.publishedOnly) {
-      result = result.filter((l) => l.status === 'PUBLISHED');
-    }
-    if (filters.minPrice) {
-      const min = parseFloat(filters.minPrice);
-      if (!isNaN(min)) result = result.filter((l) => l.price != null && l.price >= min);
-    }
-    if (filters.maxPrice) {
-      const max = parseFloat(filters.maxPrice);
-      if (!isNaN(max)) result = result.filter((l) => l.price != null && l.price <= max);
-    }
-    if (filters.category) {
-      // Category filter uses the listing tags or productId as proxy
-      result = result.filter((l) =>
-        l.tags.some((t) => t.toLowerCase() === filters.category.toLowerCase())
-      );
-    }
-    if (filters.tag) {
-      const tagFilter = filters.tag.toLowerCase();
-      result = result.filter((l) =>
-        l.tags.some((t) => t.toLowerCase().includes(tagFilter))
-      );
-    }
-
-    switch (sortBy) {
-      case 'price_asc':
-        result.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-        break;
-      case 'price_desc':
-        result.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
-        break;
-      case 'distance':
-        // Distance sort handled by server when lat/lng provided; no client re-sort needed
-        break;
-      case 'popular':
-        result.sort((a, b) => (b.weeklyViews ?? 0) - (a.weeklyViews ?? 0));
-        break;
-      case 'newest':
-      default:
-        result.sort((a, b) => {
-          const da = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-          const db = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-          return db - da;
-        });
-        break;
-    }
-
-    return result;
-  }, [listings, filters, sortBy]);
+    if (!filters.publishedOnly) return listings;
+    return listings.filter((l) => l.status === 'PUBLISHED');
+  }, [listings, filters.publishedOnly]);
 
   const trending = useMemo(() => {
     return [...listings]

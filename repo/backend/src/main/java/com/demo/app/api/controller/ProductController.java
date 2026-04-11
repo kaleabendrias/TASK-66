@@ -58,7 +58,7 @@ public class ProductController {
     @PostMapping
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
     @Audited(entityType = "PRODUCT", action = "CREATE")
-    public ResponseEntity<ProductDto> create(@RequestBody ProductDto dto) {
+    public ResponseEntity<ProductDto> create(@jakarta.validation.Valid @RequestBody ProductDto dto) {
         Product model = productMapper.toModel(dto);
         // Force sellerId to authenticated user, ignoring any value from the DTO
         model.setSellerId(getCurrentUserId());
@@ -69,7 +69,7 @@ public class ProductController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('SELLER', 'ADMINISTRATOR')")
     @Audited(entityType = "PRODUCT", action = "UPDATE")
-    public ResponseEntity<ProductDto> update(@PathVariable Long id, @RequestBody ProductDto dto) {
+    public ResponseEntity<ProductDto> update(@PathVariable Long id, @jakarta.validation.Valid @RequestBody ProductDto dto) {
         Product existing = productService.getById(id);
         if (!existing.getSellerId().equals(getCurrentUserId()) && !isAdmin()) {
             throw new OwnershipViolationException("You can only update your own products");

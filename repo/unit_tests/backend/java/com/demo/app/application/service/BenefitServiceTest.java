@@ -51,6 +51,9 @@ class BenefitServiceTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private IncidentRepository incidentRepository;
+
+    @Autowired
     private CategoryRepository categoryRepository;
 
     @Autowired
@@ -153,13 +156,116 @@ class BenefitServiceTest {
     @DisplayName("redeemBenefit creates a redemption ledger entry")
     void testRedeemBenefit_createsRedemptionEntry() {
         BenefitRedemptionLedgerEntity entry = benefitService.redeemBenefit(
-                profile.getId(), discountItem.getId(), "test-redemption", null, null, "ORDER", testOrder.getId());
+                user.getId(), profile.getId(), discountItem.getId(),
+                "test-redemption", "ORDER", testOrder.getId());
 
         assertNotNull(entry.getId());
         assertEquals(profile.getId(), entry.getMemberId());
         assertEquals(discountItem.getId(), entry.getBenefitItemId());
         assertEquals("test-redemption", entry.getReference());
         assertNotNull(entry.getRedeemedAt());
+    }
+
+    @Test
+    @DisplayName("redeemBenefit rejects redemption when caller is not the order's buyer")
+    void testRedeemBenefit_crossUserOrder_throws() {
+        UserEntity stranger = userRepository.save(TestFixtures.user("benstranger", Role.MEMBER));
+        memberProfileRepository.save(TestFixtures.profile(stranger.getId(), tier.getId(), 6000));
+
+        // The stranger tries to redeem against the original buyer's order.
+        assertThrows(com.demo.app.domain.exception.OwnershipViolationException.class,
+                () -> benefitService.redeemBenefit(
+                        stranger.getId(), profile.getId(), discountItem.getId(),
+                        "spoof", "ORDER", testOrder.getId()));
+    }
+
+    @Test
+    @DisplayName("redeemBenefit rejects redemption when caller is not the incident reporter")
+    void testRedeemBenefit_crossUserIncident_throws() {
+        UserEntity reporter = userRepository.save(TestFixtures.user("benreporter", Role.MEMBER));
+        IncidentEntity incident = new IncidentEntity();
+        incident.setReporterId(reporter.getId());
+        incident.setIncidentType("ORDER_ISSUE");
+        incident.setSeverity("NORMAL");
+        incident.setTitle("test");
+        incident.setDescription("test");
+        incident.setStatus("OPEN");
+        incident.setEscalationLevel(0);
+        incident.setCreatedAt(LocalDateTime.now());
+        incident.setUpdatedAt(LocalDateTime.now());
+        incident = incidentRepository.save(incident);
+
+        // user is not the reporter — must be denied.
+        Long incidentId = incident.getId();
+        assertThrows(com.demo.app.domain.exception.OwnershipViolationException.class,
+                () -> benefitService.redeemBenefit(
+                        user.getId(), profile.getId(), discountItem.getId(),
+                        "spoof", "INCIDENT", incidentId));
+    }
+
+    @Test
+    @DisplayName("redeemBenefit resolves category scope from the order — payload spoofing impossible")
+    void testRedeemBenefit_resolvesCategoryFromOrder_blocksMismatch() {
+        // Restrict the discount to a different category from the order's product.
+        CategoryEntity restrictedCat = categoryRepository.save(TestFixtures.category("RestrictedCat"));
+        BenefitItemEntity restricted = benefitItemRepository.save(BenefitItemEntity.builder()
+                .packageId(pkg.getId())
+                .benefitType("DISCOUNT")
+                .benefitValue("20")
+                .scope("ORDER")
+                .categoryId(restrictedCat.getId())
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        // The order's product is NOT in restrictedCat, so even though the
+        // RedeemBenefitRequest no longer carries a categoryId field, the
+        // resolved scope from the entity must reject the redemption.
+        com.demo.app.domain.exception.ConflictException ex = assertThrows(
+                com.demo.app.domain.exception.ConflictException.class,
+                () -> benefitService.redeemBenefit(
+                        user.getId(), profile.getId(), restricted.getId(),
+                        "spoof-cat", "ORDER", testOrder.getId()));
+        assertTrue(ex.getMessage().contains("category"), "should mention category in error: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("redeemBenefit resolves seller scope from the order — payload spoofing impossible")
+    void testRedeemBenefit_resolvesSellerFromOrder_blocksMismatch() {
+        UserEntity otherSeller = userRepository.save(TestFixtures.user("ben_other_seller", Role.SELLER));
+        BenefitItemEntity restricted = benefitItemRepository.save(BenefitItemEntity.builder()
+                .packageId(pkg.getId())
+                .benefitType("DISCOUNT")
+                .benefitValue("30")
+                .scope("ORDER")
+                .sellerId(otherSeller.getId())
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        com.demo.app.domain.exception.ConflictException ex = assertThrows(
+                com.demo.app.domain.exception.ConflictException.class,
+                () -> benefitService.redeemBenefit(
+                        user.getId(), profile.getId(), restricted.getId(),
+                        "spoof-seller", "ORDER", testOrder.getId()));
+        assertTrue(ex.getMessage().contains("seller"), "should mention seller in error: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("redeemBenefit succeeds when the benefit's category matches the order's actual category")
+    void testRedeemBenefit_resolvesCategoryFromOrder_allowsMatch() {
+        Long orderCategoryId = testOrder.getProduct().getCategory().getId();
+        BenefitItemEntity scoped = benefitItemRepository.save(BenefitItemEntity.builder()
+                .packageId(pkg.getId())
+                .benefitType("DISCOUNT")
+                .benefitValue("10")
+                .scope("ORDER")
+                .categoryId(orderCategoryId)
+                .createdAt(LocalDateTime.now())
+                .build());
+
+        BenefitRedemptionLedgerEntity entry = benefitService.redeemBenefit(
+                user.getId(), profile.getId(), scoped.getId(),
+                "category-match", "ORDER", testOrder.getId());
+        assertNotNull(entry.getId());
     }
 
     @Test

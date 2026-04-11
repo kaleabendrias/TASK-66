@@ -15,6 +15,7 @@ import ListingDiscoveryPage from '@/pages/ListingDiscoveryPage';
 import ListingDetailPage from '@/pages/ListingDetailPage';
 import SellerListingsPage from '@/pages/SellerListingsPage';
 import InventoryPage from '@/pages/InventoryPage';
+import ReservationsPage from '@/pages/ReservationsPage';
 import FulfillmentPage from '@/pages/FulfillmentPage';
 import MemberProfilePage from '@/pages/MemberProfilePage';
 import IncidentsPage from '@/pages/IncidentsPage';
@@ -77,7 +78,17 @@ const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="/reservations" element={<InventoryPage />} />
+          {/* Members never hit InventoryPage — its prefetch calls
+              warehouse/seller-only endpoints. Reservations live on their own
+              page so members get a clean, authorized flow. */}
+          <Route
+            path="/reservations"
+            element={
+              <ProtectedRoute roles={['MEMBER', 'SELLER', 'WAREHOUSE_STAFF', 'MODERATOR', 'ADMINISTRATOR']}>
+                <ReservationsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/fulfillment"
             element={

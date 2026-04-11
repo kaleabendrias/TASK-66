@@ -122,11 +122,11 @@ class RbacIntegrationTest {
     }
 
     @Test
-    @DisplayName("Seller cannot access warehouse endpoints")
-    void testSellerCannotAccessWarehouse() throws Exception {
+    @DisplayName("Seller can READ warehouses (needed to scope inventory mutations to a location)")
+    void testSellerCanReadWarehouses() throws Exception {
         mockMvc.perform(get("/api/warehouses")
                         .header("Authorization", "Bearer " + sellerToken))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test

@@ -38,7 +38,14 @@ public class ListingEntity {
     @Column(name = "summary", length = 500)
     private String summary;
 
-    @Column(name = "tags", columnDefinition = "text[]")
+    // No explicit columnDefinition: production migration V4 created the
+    // column as PostgreSQL `text[]`, but H2 (used by unit tests in
+    // PostgreSQL mode + ddl-auto=create-drop) doesn't recognise the literal
+    // `text[]` token. Letting Hibernate emit its default ARRAY type via
+    // @JdbcTypeCode lets the same entity round-trip on both engines —
+    // Hibernate maps String[] ↔ PostgreSQL text[] without needing the
+    // explicit columnDefinition for read/write paths.
+    @Column(name = "tags")
     @JdbcTypeCode(SqlTypes.ARRAY)
     private String[] tags;
 
@@ -54,7 +61,11 @@ public class ListingEntity {
     @Column(name = "search_rank", nullable = false)
     private double searchRank;
 
-    @Column(name = "metadata", columnDefinition = "jsonb")
+    // Likewise: production column is `jsonb`, but H2 doesn't have a literal
+    // jsonb type. We treat it as an opaque string at the JPA layer (the app
+    // never queries inside the document) so a plain String column works in
+    // both engines without a columnDefinition.
+    @Column(name = "metadata")
     private String metadata;
 
     @Column(name = "status", nullable = false)

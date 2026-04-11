@@ -40,7 +40,7 @@ public class FulfillmentController {
     }
 
     @PostMapping("/{id}/advance")
-    public ResponseEntity<FulfillmentDto> advanceStep(@PathVariable Long id, @RequestBody AdvanceStepRequest request) {
+    public ResponseEntity<FulfillmentDto> advanceStep(@PathVariable Long id, @jakarta.validation.Valid @RequestBody AdvanceStepRequest request) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
         UserEntity user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
@@ -56,8 +56,13 @@ public class FulfillmentController {
     }
 
     @PostMapping("/{id}/cancel")
-    public ResponseEntity<FulfillmentDto> cancel(@PathVariable Long id) {
-        return ResponseEntity.ok(toDto(fulfillmentService.cancelFulfillment(id)));
+    @PreAuthorize("hasAnyRole('WAREHOUSE_STAFF', 'ADMINISTRATOR')")
+    public ResponseEntity<FulfillmentDto> cancel(
+            @PathVariable Long id,
+            @RequestBody(required = false) java.util.Map<String, String> body) {
+        Long actorId = getCurrentUserId();
+        String reason = body != null ? body.get("reason") : null;
+        return ResponseEntity.ok(toDto(fulfillmentService.cancelFulfillment(id, actorId, reason)));
     }
 
     @GetMapping("/order/{orderId}")

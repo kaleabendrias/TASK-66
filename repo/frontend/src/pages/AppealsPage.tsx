@@ -114,11 +114,16 @@ const AppealsPage: React.FC = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Related Entity Type</label>
-                  <select className="form-input" value={form.relatedEntityType} onChange={(e) => setForm({ ...form, relatedEntityType: e.target.value })}>
+                  <select
+                    className="form-input"
+                    aria-label="Related Entity Type"
+                    value={form.relatedEntityType}
+                    onChange={(e) => setForm({ ...form, relatedEntityType: e.target.value })}
+                  >
                     <option value="PRODUCT">Product</option>
                     <option value="ORDER">Order</option>
                     <option value="INCIDENT">Incident</option>
-                    <option value="ACCOUNT">Account</option>
+                    <option value="LISTING">Listing</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -161,38 +166,76 @@ const AppealsPage: React.FC = () => {
         <div className="table-wrapper">
           <table className="table">
             <thead>
-              <tr><th>ID</th><th>Entity</th><th>Reason</th><th>Status</th><th>Created</th>{isMod && <th>Actions</th>}</tr>
+              <tr>
+                <th>ID</th>
+                <th>Entity</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Created</th>
+                {/* The review/closure column is visible to every role —
+                    the submitting user needs to see *why* their appeal
+                    was approved or rejected just as much as the
+                    moderator does. Previously this data was gated
+                    behind `isMod`, so non-moderators had no visibility
+                    into the decision loop. */}
+                <th>Review Outcome</th>
+                {isMod && <th>Actions</th>}
+              </tr>
             </thead>
             <tbody>
-              {appeals.map((a) => (
-                <tr key={a.id}>
-                  <td>#{a.id}</td>
-                  <td>{a.relatedEntityType} #{a.relatedEntityId}</td>
-                  <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.reason}</td>
-                  <td><span className={statusBadge(a.status)}>{a.status}</span></td>
-                  <td>{new Date(a.createdAt).toLocaleDateString()}</td>
-                  {isMod && (
-                    <td>
-                      {(a.status === 'SUBMITTED' || a.status === 'UNDER_REVIEW') && (
-                        reviewingId === a.id ? (
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <select className="form-input" style={{ width: 'auto' }} value={reviewForm.status} onChange={(e) => setReviewForm({ ...reviewForm, status: e.target.value })}>
-                              <option value="APPROVED">Approve</option>
-                              <option value="REJECTED">Reject</option>
-                            </select>
-                            <input className="form-input" style={{ width: '150px' }} placeholder="Notes" value={reviewForm.reviewNotes} onChange={(e) => setReviewForm({ ...reviewForm, reviewNotes: e.target.value })} />
-                            <button className="btn btn-primary btn-sm" onClick={() => handleReview(a.id)}>Submit</button>
-                            <button className="btn btn-secondary btn-sm" onClick={() => setReviewingId(null)}>Cancel</button>
-                          </div>
-                        ) : (
-                          <button className="btn btn-primary btn-sm" onClick={() => setReviewingId(a.id)}>Review</button>
-                        )
+              {appeals.map((a) => {
+                const isClosed = a.status === 'APPROVED' || a.status === 'REJECTED';
+                return (
+                  <tr key={a.id}>
+                    <td>#{a.id}</td>
+                    <td>{a.relatedEntityType} #{a.relatedEntityId}</td>
+                    <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.reason}</td>
+                    <td><span className={statusBadge(a.status)}>{a.status}</span></td>
+                    <td>{new Date(a.createdAt).toLocaleDateString()}</td>
+                    <td style={{ maxWidth: '320px' }}>
+                      {isClosed ? (
+                        <div className="appeal-review" style={{ fontSize: '0.85rem' }}>
+                          {a.reviewNotes
+                            ? <div><strong>Notes:</strong> {a.reviewNotes}</div>
+                            : <div className="text-muted">No reviewer notes provided.</div>}
+                          {a.reviewedAt && (
+                            <div className="text-muted" style={{ fontSize: '0.78rem', marginTop: '0.15rem' }}>
+                              Closed {new Date(a.reviewedAt).toLocaleString()}
+                              {a.resolvedAt && a.resolvedAt !== a.reviewedAt && (
+                                <> · resolved {new Date(a.resolvedAt).toLocaleDateString()}</>
+                              )}
+                              {a.reviewerId != null && <> · reviewer #{a.reviewerId}</>}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted" style={{ fontSize: '0.8rem' }}>
+                          {a.status === 'UNDER_REVIEW' ? 'Under review…' : 'Awaiting review'}
+                        </span>
                       )}
-                      {a.reviewNotes && <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }} className="text-muted">Notes: {a.reviewNotes}</div>}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    {isMod && (
+                      <td>
+                        {(a.status === 'SUBMITTED' || a.status === 'UNDER_REVIEW') && (
+                          reviewingId === a.id ? (
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <select className="form-input" style={{ width: 'auto' }} value={reviewForm.status} onChange={(e) => setReviewForm({ ...reviewForm, status: e.target.value })}>
+                                <option value="APPROVED">Approve</option>
+                                <option value="REJECTED">Reject</option>
+                              </select>
+                              <input className="form-input" style={{ width: '150px' }} placeholder="Notes" value={reviewForm.reviewNotes} onChange={(e) => setReviewForm({ ...reviewForm, reviewNotes: e.target.value })} />
+                              <button className="btn btn-primary btn-sm" onClick={() => handleReview(a.id)}>Submit</button>
+                              <button className="btn btn-secondary btn-sm" onClick={() => setReviewingId(null)}>Cancel</button>
+                            </div>
+                          ) : (
+                            <button className="btn btn-primary btn-sm" onClick={() => setReviewingId(a.id)}>Review</button>
+                          )
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

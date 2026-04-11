@@ -28,6 +28,13 @@ public class InventoryService {
                 .toModel();
     }
 
+    public InventoryItem getById(Long inventoryItemId) {
+        return inventoryItemRepository.findById(inventoryItemId)
+                .orElseThrow(() -> new com.demo.app.domain.exception.ResourceNotFoundException(
+                        "Inventory item", inventoryItemId))
+                .toModel();
+    }
+
     public List<InventoryItem> getByProduct(Long productId) {
         return inventoryItemRepository.findByProductId(productId).stream()
                 .map(InventoryItemEntity::toModel)

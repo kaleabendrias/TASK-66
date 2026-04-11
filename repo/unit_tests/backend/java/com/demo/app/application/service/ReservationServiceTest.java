@@ -47,11 +47,17 @@ class ReservationServiceTest {
     @Autowired
     private WarehouseRepository warehouseRepository;
 
+    @Autowired
+    private InventoryMovementRepository inventoryMovementRepository;
+
     private UserEntity user;
     private InventoryItemEntity inventoryItem;
 
     @BeforeEach
     void setUp() {
+        // Reservation expiry uses SystemOperatorProvider, which resolves the
+        // first ADMINISTRATOR. Seed one so the lookup never returns empty.
+        userRepository.save(TestFixtures.user("reserve_admin", Role.ADMINISTRATOR));
         user = userRepository.save(TestFixtures.user("reserveuser", Role.MEMBER));
         CategoryEntity category = categoryRepository.save(TestFixtures.category("Electronics"));
         ProductEntity product = productRepository.save(TestFixtures.product("Widget", new BigDecimal("29.99"), category, user));
@@ -201,5 +207,39 @@ class ReservationServiceTest {
                 "expiresAt should be at least ~29 minutes from before the call");
         assertTrue(reservation.getExpiresAt().isBefore(expectedMax),
                 "expiresAt should be at most ~31 minutes from now");
+    }
+
+    @Test
+    @DisplayName("expireOverdueReservations persists a RESERVATION_RELEASE movement with a non-null operatorId")
+    void testExpireOverdue_persistsMovementWithSystemOperator() {
+        StockReservation reservation = reservationService.reserve(
+                inventoryItem.getId(), user.getId(), 7, "key-persist-expiry");
+
+        StockReservationEntity entity = stockReservationRepository.findById(reservation.getId()).orElseThrow();
+        entity.setExpiresAt(LocalDateTime.now().minusMinutes(5));
+        stockReservationRepository.save(entity);
+
+        reservationService.expireOverdueReservations();
+
+        // The expiry movement is the most recent for this inventory item.
+        java.util.List<InventoryMovementEntity> movements = inventoryMovementRepository
+                .findByInventoryItemIdOrderByCreatedAtDesc(inventoryItem.getId());
+        assertFalse(movements.isEmpty());
+        InventoryMovementEntity expiry = movements.stream()
+                .filter(m -> m.getReferenceDocument() != null
+                        && m.getReferenceDocument().startsWith("reservation-expired:"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expiry movement not persisted"));
+
+        // V5 schema requires operator_id NOT NULL — this assertion would fail
+        // if we ever regress to writing the movement without one.
+        assertNotNull(expiry.getOperatorId(), "operatorId is NOT NULL in V5 schema");
+        assertEquals("RESERVATION_RELEASE", expiry.getMovementType());
+        assertEquals(7, expiry.getQuantity());
+        assertEquals(inventoryItem.getWarehouseId(), expiry.getWarehouseId());
+
+        // The reserved counter must be released.
+        InventoryItemEntity refreshed = inventoryItemRepository.findById(inventoryItem.getId()).orElseThrow();
+        assertEquals(0, refreshed.getQuantityReserved());
     }
 }

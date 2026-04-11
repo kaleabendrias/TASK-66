@@ -44,12 +44,14 @@ class IncidentControllerTest {
     private String otherMemberToken;
     private UserEntity member;
     private UserEntity moderator;
+    private UserEntity seller;
     private IncidentEntity incident;
 
     @BeforeEach
     void setUp() {
         member = userRepository.save(TestFixtures.user("inc_member", Role.MEMBER));
         moderator = userRepository.save(TestFixtures.user("inc_mod", Role.MODERATOR));
+        seller = userRepository.save(TestFixtures.user("inc_seller", Role.SELLER));
         UserEntity otherMember = userRepository.save(TestFixtures.user("inc_other", Role.MEMBER));
 
         memberToken = jwtService.generateToken(member.getUsername(), member.getRole().name());
@@ -77,7 +79,8 @@ class IncidentControllerTest {
     void create_validEnumTypes_returnsOk() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
-                "title", "New issue", "description", "Details"));
+                "title", "New issue", "description", "Details",
+                "sellerId", seller.getId()));
         mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
@@ -90,12 +93,24 @@ class IncidentControllerTest {
         String body = objectMapper.writeValueAsString(Map.of(
                 "incidentType", "EMERGENCY", "severity", "HIGH",
                 "title", "Location issue", "description", "At corner",
-                "address", "123 Main St", "crossStreet", "Oak Ave"));
+                "address", "123 Main St", "crossStreet", "Oak Ave",
+                "sellerId", seller.getId()));
         mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.address").value("123 Main St"))
                 .andExpect(jsonPath("$.crossStreet").value("Oak Ave"));
+    }
+
+    @Test
+    @DisplayName("POST /incidents without sellerId returns 400")
+    void create_missingSellerId_returnsBadRequest() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+                "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
+                "title", "Missing seller", "description", "no seller"));
+        mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -181,6 +196,21 @@ class IncidentControllerTest {
                 "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
                 "title", "Against ghost", "description", "details",
                 "sellerId", 9_999_999));
+        mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /incidents rejects sellerId pointing at a non-SELLER account (risk integrity)")
+    void create_withNonSellerSellerId_returnsBadRequest() throws Exception {
+        // The other "member" user is a real, persisted user but has Role.MEMBER.
+        // Risk analytics requires sellerId to reference an actual SELLER role.
+        UserEntity nonSeller = userRepository.save(TestFixtures.user("inc_not_seller", Role.MEMBER));
+        String body = objectMapper.writeValueAsString(Map.of(
+                "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
+                "title", "Wrong-role seller", "description", "details",
+                "sellerId", nonSeller.getId()));
         mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
