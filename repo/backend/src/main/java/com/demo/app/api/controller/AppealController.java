@@ -102,12 +102,23 @@ public class AppealController {
         if (contentType == null || !(contentType.startsWith("image/") || contentType.equals("application/pdf"))) {
             throw new IllegalArgumentException("Only image and PDF files are allowed");
         }
-        // Deep MIME validation via magic bytes
+        // Deep MIME validation via magic bytes.
+        //
+        // RIFF/WebP layout: 'RIFF' (0..3), little-endian size (4..7), 'WEBP' (8..11).
+        // The previous check looked for 'WEBP' at bytes 4..7 — that's where the
+        // size bytes live, so every valid WebP was rejected. We now read 12 bytes
+        // and test the correct offset 8..11. InputStream.read may short-read, so
+        // we loop until we have all 12 bytes (or hit EOF).
         try {
-            byte[] header = new byte[8];
-            java.io.InputStream is = file.getInputStream();
-            int read = is.read(header);
-            is.close();
+            byte[] header = new byte[12];
+            int read = 0;
+            try (java.io.InputStream is = file.getInputStream()) {
+                while (read < header.length) {
+                    int n = is.read(header, read, header.length - read);
+                    if (n == -1) break;
+                    read += n;
+                }
+            }
             if (read >= 4) {
                 boolean validMagic = false;
                 // JPEG: FF D8 FF
@@ -118,9 +129,12 @@ public class AppealController {
                 if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46) validMagic = true;
                 // PDF: 25 50 44 46
                 if (header[0] == 0x25 && header[1] == 0x50 && header[2] == 0x44 && header[3] == 0x46) validMagic = true;
-                // WebP: 52 49 46 46 ... 57 45 42 50
-                if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 && read >= 8
-                    && header[4] == 0x57 && header[5] == 0x45 && header[6] == 0x42 && header[7] == 0x50) validMagic = true;
+                // WebP: RIFF....WEBP — signature at bytes 8..11, not 4..7.
+                if (read >= 12
+                        && header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46
+                        && header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) {
+                    validMagic = true;
+                }
                 if (!validMagic) {
                     throw new IllegalArgumentException("File content does not match an allowed type (image or PDF)");
                 }

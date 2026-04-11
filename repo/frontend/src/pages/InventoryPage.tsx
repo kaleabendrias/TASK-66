@@ -1,9 +1,30 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getWarehouses, getLowStockItems, getInventoryByProduct, adjustStock, getMyReservations, confirmReservation, cancelReservation } from '@/api/warehouses';
+import {
+  getWarehouses,
+  getLowStockItems,
+  getInventoryByProduct,
+  getMyReservations,
+  confirmReservation,
+  cancelReservation,
+  recordInbound,
+  recordOutbound,
+  recordStocktake,
+} from '@/api/warehouses';
 import { getProducts } from '@/api/products';
 import { Warehouse, InventoryItem, Product, StockReservation } from '@/api/types';
 
-const MOVEMENT_TYPES = ['RECEIPT', 'ADJUSTMENT', 'RETURN', 'TRANSFER'];
+// These three operations map to dedicated backend endpoints
+// (/inventory/inbound, /inventory/outbound, /inventory/stocktake), each of
+// which writes a typed movement record and is audited independently. Do not
+// fold them back into a generic "adjustment" — the endpoints diverge on
+// validation and expected payload shape.
+type MovementKind = 'INBOUND' | 'OUTBOUND' | 'STOCKTAKE';
+
+const MOVEMENT_KINDS: { value: MovementKind; label: string; helper: string }[] = [
+  { value: 'INBOUND', label: 'Inbound Receipt', helper: 'Stock received from a supplier or returned into inventory.' },
+  { value: 'OUTBOUND', label: 'Outbound Movement', helper: 'Stock leaving the warehouse (shipment, write-off, transfer out).' },
+  { value: 'STOCKTAKE', label: 'Stocktake Count', helper: 'Absolute physical count; the system reconciles any delta.' },
+];
 
 const InventoryPage: React.FC = () => {
   const [tab, setTab] = useState<'inventory' | 'reservations'>('inventory');
@@ -16,10 +37,14 @@ const InventoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Adjust stock modal
-  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
-  const [adjForm, setAdjForm] = useState({ quantityChange: 0, movementType: 'RECEIPT', referenceDocument: '', notes: '' });
-  const [adjLoading, setAdjLoading] = useState(false);
+  // Movement modal state
+  const [movementItem, setMovementItem] = useState<InventoryItem | null>(null);
+  const [movementKind, setMovementKind] = useState<MovementKind>('INBOUND');
+  const [quantity, setQuantity] = useState<number>(0);
+  const [referenceDocument, setReferenceDocument] = useState('');
+  const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -34,17 +59,16 @@ const InventoryPage: React.FC = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const refreshInventory = useCallback(async (currentProducts: Product[]) => {
+    const all = await Promise.all(currentProducts.map(p => getInventoryByProduct(p.id)));
+    const flat = all.flat();
+    setInventory(selectedWarehouse ? flat.filter(i => i.warehouseId === Number(selectedWarehouse)) : flat);
+  }, [selectedWarehouse]);
+
   useEffect(() => {
     if (products.length === 0) return;
-    const fetchInventory = async () => {
-      try {
-        const all = await Promise.all(products.map(p => getInventoryByProduct(p.id)));
-        const flat = all.flat();
-        setInventory(selectedWarehouse ? flat.filter(i => i.warehouseId === selectedWarehouse) : flat);
-      } catch { /* ignore */ }
-    };
-    fetchInventory();
-  }, [products, selectedWarehouse]);
+    refreshInventory(products).catch(() => { /* ignore */ });
+  }, [products, refreshInventory]);
 
   const loadReservations = useCallback(async () => {
     try { setReservations(await getMyReservations()); } catch { /* ignore */ }
@@ -54,26 +78,63 @@ const InventoryPage: React.FC = () => {
 
   const productName = (id: number) => products.find(p => p.id === id)?.name || `Product #${id}`;
 
-  const handleAdjust = async () => {
-    if (!adjustItem) return;
-    setAdjLoading(true);
+  const openMovement = (item: InventoryItem, kind: MovementKind = 'INBOUND') => {
+    setMovementItem(item);
+    setMovementKind(kind);
+    setQuantity(0);
+    setReferenceDocument('');
+    setNotes('');
+    setFormError(null);
+  };
+
+  const closeMovement = () => {
+    setMovementItem(null);
+    setFormError(null);
+  };
+
+  const submitMovement = async () => {
+    if (!movementItem) return;
+    setFormError(null);
+    if (movementKind !== 'STOCKTAKE' && quantity <= 0) {
+      setFormError('Quantity must be greater than zero for inbound/outbound movements.');
+      return;
+    }
+    if (movementKind === 'STOCKTAKE' && quantity < 0) {
+      setFormError('Counted quantity cannot be negative.');
+      return;
+    }
+    setSubmitting(true);
     try {
-      await adjustStock({
-        inventoryItemId: adjustItem.id,
-        quantityChange: adjForm.quantityChange,
-        movementType: adjForm.movementType,
-        referenceDocument: adjForm.referenceDocument,
-        notes: adjForm.notes,
-      });
-      setAdjustItem(null);
-      setAdjForm({ quantityChange: 0, movementType: 'RECEIPT', referenceDocument: '', notes: '' });
-      // Refresh inventory
-      const all = await Promise.all(products.map(p => getInventoryByProduct(p.id)));
-      const flat = all.flat();
-      setInventory(selectedWarehouse ? flat.filter(i => i.warehouseId === Number(selectedWarehouse)) : flat);
+      if (movementKind === 'INBOUND') {
+        await recordInbound({
+          inventoryItemId: movementItem.id,
+          quantity,
+          referenceDocument,
+          notes,
+        });
+      } else if (movementKind === 'OUTBOUND') {
+        await recordOutbound({
+          inventoryItemId: movementItem.id,
+          quantity,
+          referenceDocument,
+          notes,
+        });
+      } else {
+        await recordStocktake({
+          productId: movementItem.productId,
+          warehouseId: movementItem.warehouseId,
+          countedQuantity: quantity,
+          referenceDocument,
+        });
+      }
+      closeMovement();
+      await refreshInventory(products);
       setLowStock(await getLowStockItems());
-    } catch { setError('Failed to adjust stock'); }
-    finally { setAdjLoading(false); }
+    } catch {
+      setFormError('Failed to record movement. Check the values and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleConfirm = async (id: number) => {
@@ -84,6 +145,9 @@ const InventoryPage: React.FC = () => {
   };
 
   if (loading) return <div className="page-loading">Loading...</div>;
+
+  const activeKind = MOVEMENT_KINDS.find(k => k.value === movementKind) ?? MOVEMENT_KINDS[0];
+  const quantityLabel = movementKind === 'STOCKTAKE' ? 'Counted quantity' : 'Quantity';
 
   return (
     <div className="page">
@@ -139,7 +203,13 @@ const InventoryPage: React.FC = () => {
                       <td>{item.quantityReserved}</td>
                       <td>{item.quantityAvailable}</td>
                       <td>{item.lowStock && <span className="badge badge-danger">LOW STOCK</span>}</td>
-                      <td><button className="btn btn-primary btn-sm" onClick={() => { setAdjustItem(item); setAdjForm({ quantityChange: 0, movementType: 'RECEIPT', referenceDocument: '', notes: '' }); }}>Adjust Stock</button></td>
+                      <td>
+                        <div className="flex gap-sm">
+                          <button className="btn btn-primary btn-sm" onClick={() => openMovement(item, 'INBOUND')}>Inbound</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openMovement(item, 'OUTBOUND')}>Outbound</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openMovement(item, 'STOCKTAKE')}>Stocktake</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -185,37 +255,54 @@ const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Adjust Stock Modal */}
-      {adjustItem && (
-        <div className="modal-overlay" onClick={() => setAdjustItem(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+      {/* Movement Modal */}
+      {movementItem && (
+        <div className="modal-overlay" onClick={closeMovement}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} role="dialog" aria-label="Record inventory movement">
             <div className="modal-header">
-              <h3>Adjust Stock — {productName(adjustItem.productId)}</h3>
-              <button className="modal-close" onClick={() => setAdjustItem(null)}>&times;</button>
+              <h3>{activeKind.label} — {productName(movementItem.productId)}</h3>
+              <button className="modal-close" onClick={closeMovement}>&times;</button>
             </div>
             <div className="modal-body">
+              <p className="text-muted" style={{ marginBottom: '0.75rem' }}>{activeKind.helper}</p>
               <div className="form-group">
-                <label className="form-label">Quantity Change</label>
-                <input type="number" className="form-input" value={adjForm.quantityChange} onChange={e => setAdjForm({ ...adjForm, quantityChange: Number(e.target.value) })} />
-                <small className="text-muted">Positive for receipt, negative for reduction</small>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Movement Type</label>
-                <select className="form-input" value={adjForm.movementType} onChange={e => setAdjForm({ ...adjForm, movementType: e.target.value })}>
-                  {MOVEMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                <label className="form-label">Movement type</label>
+                <select
+                  className="form-input"
+                  value={movementKind}
+                  onChange={e => setMovementKind(e.target.value as MovementKind)}
+                  aria-label="Movement type"
+                >
+                  {MOVEMENT_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Reference Document</label>
-                <input type="text" className="form-input" value={adjForm.referenceDocument} onChange={e => setAdjForm({ ...adjForm, referenceDocument: e.target.value })} />
+                <label className="form-label">{quantityLabel}</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={quantity}
+                  min={0}
+                  onChange={e => setQuantity(Number(e.target.value))}
+                  aria-label={quantityLabel}
+                />
               </div>
               <div className="form-group">
-                <label className="form-label">Notes</label>
-                <textarea className="form-input" rows={3} value={adjForm.notes} onChange={e => setAdjForm({ ...adjForm, notes: e.target.value })} />
+                <label className="form-label">Reference document</label>
+                <input type="text" className="form-input" value={referenceDocument} onChange={e => setReferenceDocument(e.target.value)} />
               </div>
+              {movementKind !== 'STOCKTAKE' && (
+                <div className="form-group">
+                  <label className="form-label">Notes</label>
+                  <textarea className="form-input" rows={3} value={notes} onChange={e => setNotes(e.target.value)} />
+                </div>
+              )}
+              {formError && <div className="alert alert-danger" role="alert">{formError}</div>}
               <div className="form-actions">
-                <button className="btn btn-secondary" onClick={() => setAdjustItem(null)}>Cancel</button>
-                <button className="btn btn-primary" disabled={adjLoading} onClick={handleAdjust}>{adjLoading ? 'Saving...' : 'Submit Adjustment'}</button>
+                <button className="btn btn-secondary" onClick={closeMovement} disabled={submitting}>Cancel</button>
+                <button className="btn btn-primary" disabled={submitting} onClick={submitMovement}>
+                  {submitting ? 'Saving...' : `Record ${activeKind.label}`}
+                </button>
               </div>
             </div>
           </div>

@@ -13,7 +13,7 @@ docker compose up --build
 ```
 
 Requires Docker and Compose installed. On a clean volume, Flyway applies
-18 migrations and seeds demo data. The frontend build expects network access
+21 migrations and seeds demo data. The frontend build expects network access
 during `npm install`; subsequent starts use cached layers. Secrets are
 generated at container startup via the entrypoint (no .env files required).
 If `APP_JWT_SECRET` or `APP_ENCRYPTION_SECRET` are set in the environment,
@@ -59,12 +59,11 @@ All users share password **`password123`**.
 Executes three isolated suites inside Docker containers and exits non-zero on
 any failure:
 
-| Suite              | Location                | Runner           | Count | Coverage Gate |
-|--------------------|-------------------------|------------------|-------|---------------|
-| Backend unit       | `unit_tests/backend/`   | JUnit 5 + JaCoCo | 118   | >= 50% lines (expanding) |
-| Frontend unit      | `unit_tests/frontend/`  | Vitest + v8      | 110   | >= 90% lines  |
-| API integration    | `API_tests/`            | pytest + requests| 98+   | >= 90% lines  |
-| **Total**          |                         |                  |**306+**|              |
+| Suite              | Location                | Runner           | Test Files | Coverage Gate                                  |
+|--------------------|-------------------------|------------------|------------|------------------------------------------------|
+| Backend unit       | `unit_tests/backend/`   | JUnit 5 + JaCoCo | 34         | >= 70% lines (`pom.xml` JaCoCo `check` rule)   |
+| Frontend unit      | `unit_tests/frontend/`  | Vitest + v8      | 36         | >= 74% lines / 55% branches / 40% functions    |
+| API integration    | `API_tests/`            | pytest + requests| 17         | >= 90% lines (`pytest --cov-fail-under=90`)    |
 
 ### What the Tests Cover
 
@@ -125,7 +124,7 @@ frontend/src
  └── pages/                        Route-level components
 ```
 
-### Database (17 Flyway Migrations)
+### Database (21 Flyway Migrations)
 
 ```
 V1  Base tables:        app_user, category, product, product_order
@@ -159,6 +158,12 @@ V15 Appeal evidence:    DB trigger enforcing max 5 files per appeal
 V16 Benefit refs:       structured reference_type/id on ledgers
 V17 Benefit FKs:        strict order_id/incident_id foreign keys
                         on issuance and redemption ledgers
+V18 Benefit refs:       mandatory benefit reference enforcement
+V19 Evidence keys:      appeal evidence encryption key rotation support
+V20 User PII at rest:   AES-GCM encrypted email / display_name;
+                        SHA-256 email_lookup_hash for uniqueness + lookup
+V21 Incident seller:    explicit seller_id linkage on incidents for
+                        seller-scoped risk analytics windows
 ```
 
 ---
@@ -449,11 +454,12 @@ works fully offline.
 
 | Gate                        | Tool                 | Threshold | Enforcement        |
 |-----------------------------|----------------------|-----------|--------------------|
-| Backend line coverage       | JaCoCo 0.8.12        | >= 70% (214 unit tests, all code measured) | `mvn test` fails |
-| Frontend line coverage      | Vitest + v8          | >= 74% (164 tests, all pages measured) | `vitest run` fails  |
-| Frontend branch coverage    | Vitest + v8          | >= 55%    | `vitest run` fails  |
-| Frontend function coverage  | Vitest + v8          | >= 40%    | `vitest run` fails  |
-| API test pass rate          | pytest               | 100%      | Non-zero exit       |
+| Backend line coverage       | JaCoCo 0.8.12        | >= 70%    | `mvn test` fails   |
+| Frontend statement coverage | Vitest + v8          | >= 74%    | `vitest run` fails |
+| Frontend line coverage      | Vitest + v8          | >= 74%    | `vitest run` fails |
+| Frontend branch coverage    | Vitest + v8          | >= 55%    | `vitest run` fails |
+| Frontend function coverage  | Vitest + v8          | >= 40%    | `vitest run` fails |
+| API test coverage           | pytest --cov         | >= 90%    | `--cov-fail-under=90` |
 | Schema consistency          | Flyway + ddl-auto=validate | Strict | App won't start  |
 | Java compilation            | Maven + javac 21     | 0 errors  | Build fails         |
 | TypeScript                  | tsc --strict         | 0 errors  | Build fails         |
@@ -472,10 +478,10 @@ works fully offline.
 │   ├── Dockerfile                     Multi-stage Maven + JRE 21
 │   ├── pom.xml                        Dependencies + JaCoCo
 │   └── src/main/
-│       ├── java/com/demo/app/         178 Java source files
+│       ├── java/com/demo/app/         Java source tree
 │       └── resources/
 │           ├── application.yml         All config (no .env)
-│           └── db/migration/           14 Flyway SQL migrations
+│           └── db/migration/           21 Flyway SQL migrations
 ├── frontend/
 │   ├── Dockerfile                     Multi-stage Node 20
 │   ├── package.json                   React, Axios, Zustand, Vitest
@@ -486,12 +492,12 @@ works fully offline.
 │   └── nginx.conf                     Reverse proxy config
 ├── unit_tests/
 │   ├── backend/
-│   │   ├── java/com/demo/app/         18 JUnit test files
+│   │   ├── java/com/demo/app/         34 JUnit test files
 │   │   └── resources/                 H2 test configuration
-│   └── frontend/                      16 Vitest test files
+│   └── frontend/                      36 Vitest test files
 └── API_tests/
     ├── conftest.py                    Shared fixtures
     ├── requirements.txt               pytest, requests
     ├── Dockerfile                     Python 3.12 test runner
-    └── test_*.py                      10 integration test files
+    └── test_*.py                      17 integration test files
 ```

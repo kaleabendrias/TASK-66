@@ -15,6 +15,7 @@ public class Incident {
     private Long id;
     private Long reporterId;
     private Long assigneeId;
+    private Long sellerId;
     private String incidentType;
     private String severity;
     private String title;

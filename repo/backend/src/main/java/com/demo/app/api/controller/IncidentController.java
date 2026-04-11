@@ -63,7 +63,8 @@ public class IncidentController {
                 request.title(),
                 request.description(),
                 request.address(),
-                request.crossStreet()
+                request.crossStreet(),
+                request.sellerId()
         );
         return ResponseEntity.ok(toDto(incident));
     }
@@ -136,6 +137,7 @@ public class IncidentController {
                 i.getId(),
                 i.getReporterId(),
                 i.getAssigneeId(),
+                i.getSellerId(),
                 i.getIncidentType(),
                 i.getSeverity(),
                 i.getTitle(),

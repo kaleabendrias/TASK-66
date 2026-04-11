@@ -2,6 +2,7 @@ package com.demo.app.persistence.entity;
 
 import com.demo.app.domain.enums.Role;
 import com.demo.app.domain.model.User;
+import com.demo.app.infrastructure.encryption.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,13 +26,21 @@ public class UserEntity {
     @Column(name = "username", nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(name = "email", nullable = false, unique = true, length = 120)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "email", nullable = false, length = 512)
     private String email;
+
+    // Deterministic SHA-256 of the normalized email. Lets us enforce uniqueness
+    // and look up by email without ever needing to decrypt — the encrypted
+    // column alone cannot satisfy either need because AES/GCM is randomized.
+    @Column(name = "email_lookup_hash", length = 64, unique = true)
+    private String emailLookupHash;
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
-    @Column(name = "display_name", nullable = false, length = 100)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "display_name", nullable = false, length = 512)
     private String displayName;
 
     @Enumerated(EnumType.STRING)

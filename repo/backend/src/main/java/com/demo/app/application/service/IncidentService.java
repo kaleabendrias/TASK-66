@@ -38,7 +38,7 @@ public class IncidentService {
     );
 
     public Incident create(Long reporterId, String incidentType, String severity, String title, String description,
-                           String address, String crossStreet) {
+                           String address, String crossStreet, Long sellerId) {
         LocalDateTime now = LocalDateTime.now();
 
         int ackMinutes = ackSlaMinutes;
@@ -49,8 +49,13 @@ public class IncidentService {
             resolveHours = resolveHours / 2;
         }
 
+        if (sellerId != null && !userRepository.existsById(sellerId)) {
+            throw new IllegalArgumentException("sellerId does not reference an existing user: " + sellerId);
+        }
+
         IncidentEntity entity = IncidentEntity.builder()
                 .reporterId(reporterId)
+                .sellerId(sellerId)
                 .incidentType(incidentType)
                 .severity(severity)
                 .title(title)

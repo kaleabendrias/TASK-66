@@ -1,6 +1,7 @@
 package com.demo.app.application.service;
 
 import com.demo.app.domain.model.User;
+import com.demo.app.infrastructure.encryption.EmailHashUtil;
 import com.demo.app.persistence.entity.UserEntity;
 import com.demo.app.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ public class UserService {
         UserEntity entity = UserEntity.builder()
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .emailLookupHash(EmailHashUtil.hash(user.getEmail()))
                 .passwordHash(passwordHash)
                 .displayName(user.getDisplayName())
                 .role(user.getRole())
@@ -58,6 +60,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
         entity.setUsername(user.getUsername());
         entity.setEmail(user.getEmail());
+        entity.setEmailLookupHash(EmailHashUtil.hash(user.getEmail()));
         entity.setDisplayName(user.getDisplayName());
         entity.setRole(user.getRole());
         entity.setEnabled(user.isEnabled());

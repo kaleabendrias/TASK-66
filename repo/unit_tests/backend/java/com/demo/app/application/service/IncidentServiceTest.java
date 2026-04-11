@@ -45,7 +45,7 @@ class IncidentServiceTest {
         LocalDateTime before = LocalDateTime.now();
 
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Suspicious activity", "Details here", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Suspicious activity", "Details here", null, null, null);
 
         assertEquals("OPEN", incident.getStatus());
         assertNotNull(incident.getSlaAckDeadline());
@@ -62,7 +62,7 @@ class IncidentServiceTest {
         LocalDateTime before = LocalDateTime.now();
 
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "EMERGENCY", "Critical issue", "Urgent", null, null);
+                reporter.getId(), "FRAUD", "EMERGENCY", "Critical issue", "Urgent", null, null, null);
 
         assertNotNull(incident.getSlaAckDeadline());
 
@@ -77,7 +77,7 @@ class IncidentServiceTest {
     @DisplayName("acknowledge updates status and sets assignee")
     void testAcknowledge_updatesStatusAndAssignee() {
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null, null);
 
         UserEntity assignee = userRepository.save(TestFixtures.user("assignee", Role.MODERATOR));
         Incident acknowledged = incidentService.acknowledge(incident.getId(), assignee.getId());
@@ -90,7 +90,7 @@ class IncidentServiceTest {
     @DisplayName("acknowledge on already acknowledged incident is idempotent")
     void testAcknowledge_alreadyAcknowledged_idempotent() {
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null, null);
 
         UserEntity assignee = userRepository.save(TestFixtures.user("assignee2", Role.MODERATOR));
         incidentService.acknowledge(incident.getId(), assignee.getId());
@@ -103,7 +103,7 @@ class IncidentServiceTest {
     @DisplayName("updateStatus allows forward transition from OPEN to ACKNOWLEDGED")
     void testUpdateStatus_forwardOnly_open_to_acknowledged() {
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null, null);
 
         Incident updated = incidentService.updateStatus(incident.getId(), "ACKNOWLEDGED", null);
 
@@ -114,7 +114,7 @@ class IncidentServiceTest {
     @DisplayName("updateStatus throws on backward transition from RESOLVED to OPEN")
     void testUpdateStatus_cannotGoBackward_throws() {
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null, null);
 
         // Move forward to RESOLVED (closure code required for RESOLVED)
         incidentService.updateStatus(incident.getId(), "ACKNOWLEDGED", null);
@@ -129,7 +129,7 @@ class IncidentServiceTest {
     @DisplayName("addComment creates a comment on the incident")
     void testAddComment_createsComment() {
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null, null);
 
         IncidentComment comment = incidentService.addComment(
                 incident.getId(), reporter.getId(), "This is a comment");
@@ -143,7 +143,7 @@ class IncidentServiceTest {
     @DisplayName("getComments returns comments sorted by date ascending")
     void testGetComments_returnsSortedByDate() {
         Incident incident = incidentService.create(
-                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null);
+                reporter.getId(), "FRAUD", "HIGH", "Test", "Desc", null, null, null);
 
         incidentService.addComment(incident.getId(), reporter.getId(), "First comment");
         incidentService.addComment(incident.getId(), reporter.getId(), "Second comment");

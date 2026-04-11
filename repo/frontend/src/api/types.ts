@@ -214,6 +214,7 @@ export interface Incident {
   id: number;
   reporterId: number;
   assigneeId: number | null;
+  sellerId: number | null;
   incidentType: string;
   severity: string;
   title: string;
@@ -227,6 +228,7 @@ export interface Incident {
   createdAt: string;
   acknowledgedAt: string | null;
   resolvedAt: string | null;
+  closureCode: string | null;
 }
 
 export interface IncidentComment {

@@ -27,6 +27,12 @@ public class IncidentEntity {
     @Column(name = "assignee_id")
     private Long assigneeId;
 
+    // The seller the incident is filed *against* (owner of the listing, product,
+    // or account that the complaint concerns). Independent from reporterId
+    // (who filed) and assigneeId (moderator handling triage).
+    @Column(name = "seller_id")
+    private Long sellerId;
+
     @Column(name = "incident_type", nullable = false)
     private String incidentType;
 
@@ -77,6 +83,7 @@ public class IncidentEntity {
                 .id(id)
                 .reporterId(reporterId)
                 .assigneeId(assigneeId)
+                .sellerId(sellerId)
                 .incidentType(incidentType)
                 .severity(severity)
                 .title(title)

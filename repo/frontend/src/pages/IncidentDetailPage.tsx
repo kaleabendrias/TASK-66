@@ -2,7 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuthStore } from '@/state/authStore';
 import { Incident, IncidentComment } from '@/api/types';
-import { getIncident, getIncidentComments, addIncidentComment, acknowledgeIncident, updateIncidentStatus } from '@/api/incidents';
+import {
+  getIncident,
+  getIncidentComments,
+  addIncidentComment,
+  acknowledgeIncident,
+  updateIncidentStatus,
+  resolveIncident,
+} from '@/api/incidents';
+
+const CLOSURE_CODES = [
+  'FIXED',
+  'REFUNDED',
+  'REPLACED',
+  'DUPLICATE',
+  'NOT_REPRODUCIBLE',
+  'WONT_FIX',
+] as const;
 
 const IncidentDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +28,10 @@ const IncidentDetailPage: React.FC = () => {
   const [comments, setComments] = useState<IncidentComment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
+  const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
+  const [closureCode, setClosureCode] = useState<string>(CLOSURE_CODES[0]);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -36,6 +56,33 @@ const IncidentDetailPage: React.FC = () => {
     if (!id) return;
     await updateIncidentStatus(+id, status);
     load();
+  };
+
+  const openResolveDialog = () => {
+    setClosureCode(CLOSURE_CODES[0]);
+    setResolveError(null);
+    setResolveDialogOpen(true);
+  };
+
+  const submitResolve = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    if (!closureCode || !closureCode.trim()) {
+      setResolveError('Select a closure code before resolving.');
+      return;
+    }
+    setResolving(true);
+    setResolveError(null);
+    try {
+      await resolveIncident(+id, closureCode);
+      setResolveDialogOpen(false);
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to resolve incident';
+      setResolveError(message);
+    } finally {
+      setResolving(false);
+    }
   };
 
   const handleComment = async (e: React.FormEvent) => {
@@ -65,6 +112,8 @@ const IncidentDetailPage: React.FC = () => {
               <p><strong>Type:</strong> {incident.incidentType.replace(/_/g, ' ')}</p>
               <p><strong>Severity:</strong> <span className={incident.severity === 'HIGH' || incident.severity === 'EMERGENCY' ? 'badge badge-danger' : 'badge badge-warning'}>{incident.severity}</span></p>
               <p><strong>Status:</strong> <span className={incident.status === 'RESOLVED' ? 'badge badge-success' : 'badge badge-info'}>{incident.status}</span></p>
+              {incident.sellerId && <p><strong>Seller:</strong> User #{incident.sellerId}</p>}
+              {incident.closureCode && <p><strong>Closure Code:</strong> <span className="badge badge-success">{incident.closureCode}</span></p>}
               {incident.escalationLevel > 0 && <p><strong>Escalation Level:</strong> <span className="badge badge-danger">L{incident.escalationLevel}</span></p>}
               {slaBreached && <div className="alert alert-danger" style={{ marginTop: '0.5rem' }}>SLA BREACHED - Acknowledgment overdue</div>}
               <hr style={{ margin: '1rem 0', border: 'none', borderTop: '1px solid var(--neutral-200)' }} />
@@ -116,7 +165,14 @@ const IncidentDetailPage: React.FC = () => {
                   <button className="btn btn-primary btn-block" onClick={() => handleStatusChange('IN_PROGRESS')}>Start Work</button>
                 )}
                 {(incident.status === 'IN_PROGRESS' || incident.status === 'ACKNOWLEDGED') && (
-                  <button className="btn btn-primary btn-block" style={{ background: 'var(--success)' }} onClick={() => handleStatusChange('RESOLVED')}>Resolve</button>
+                  <button
+                    className="btn btn-primary btn-block"
+                    style={{ background: 'var(--success)' }}
+                    onClick={openResolveDialog}
+                    aria-label="Resolve incident"
+                  >
+                    Resolve
+                  </button>
                 )}
                 {incident.status === 'RESOLVED' && (
                   <button className="btn btn-secondary btn-block" onClick={() => handleStatusChange('CLOSED')}>Close</button>
@@ -126,6 +182,64 @@ const IncidentDetailPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {resolveDialogOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Resolve incident"
+          className="modal-backdrop"
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
+          }}
+        >
+          <form
+            onSubmit={submitResolve}
+            className="card"
+            style={{ minWidth: 360, maxWidth: 480, background: 'white' }}
+          >
+            <div className="card-header">Resolve incident</div>
+            <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <p className="text-muted" style={{ margin: 0 }}>
+                Select a closure code. Required by backend policy for all resolutions.
+              </p>
+              <label>
+                <span style={{ display: 'block', marginBottom: '0.25rem' }}>Closure code</span>
+                <select
+                  className="form-input"
+                  value={closureCode}
+                  onChange={(e) => setClosureCode(e.target.value)}
+                  aria-label="Closure code"
+                  name="closureCode"
+                >
+                  {CLOSURE_CODES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
+              {resolveError && <div className="alert alert-danger" role="alert">{resolveError}</div>}
+            </div>
+            <div className="card-footer form-actions" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setResolveDialogOpen(false)}
+                disabled={resolving}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={resolving}
+              >
+                {resolving ? 'Resolving…' : 'Confirm resolve'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

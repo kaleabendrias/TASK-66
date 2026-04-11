@@ -2,6 +2,7 @@ package com.demo.app.application.service;
 
 import com.demo.app.domain.enums.Role;
 import com.demo.app.domain.model.User;
+import com.demo.app.infrastructure.encryption.EmailHashUtil;
 import com.demo.app.infrastructure.ratelimit.LoginAttemptService;
 import com.demo.app.persistence.entity.UserEntity;
 import com.demo.app.persistence.repository.UserRepository;
@@ -64,13 +65,15 @@ public class AuthService {
         if (userRepository.existsByUsername(username)) {
             throw new RuntimeException("Username already taken: " + username);
         }
-        if (userRepository.existsByEmail(email)) {
+        String emailHash = EmailHashUtil.hash(email);
+        if (userRepository.existsByEmailLookupHash(emailHash)) {
             throw new RuntimeException("Email already in use: " + email);
         }
 
         UserEntity entity = UserEntity.builder()
                 .username(username)
                 .email(email)
+                .emailLookupHash(emailHash)
                 .passwordHash(passwordEncoder.encode(password))
                 .displayName(displayName)
                 .role(Role.MEMBER)

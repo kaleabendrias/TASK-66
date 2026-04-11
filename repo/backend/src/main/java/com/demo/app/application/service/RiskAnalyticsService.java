@@ -63,30 +63,34 @@ public class RiskAnalyticsService {
         double score = 0.0;
         Map<String, Object> factors = new HashMap<>();
 
-        // Per-user scoped: only incidents reported by this user
-        List<com.demo.app.persistence.entity.IncidentEntity> userRecentIncidents =
-            incidentRepository.findByReporterId(userId).stream()
-                .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
-                .toList();
+        // Seller-scoped incident window: complaints filed *against* this user as
+        // the seller in the last 30 days. This is the signal that matters for
+        // marketplace risk — a seller getting repeatedly reported by buyers.
+        // Reporter/assignee linkages (who filed, who triaged) are no longer
+        // conflated with seller exposure.
+        List<com.demo.app.persistence.entity.IncidentEntity> sellerRecentIncidents =
+                incidentRepository.findBySellerIdSince(userId, thirtyDaysAgo);
 
-        // Staff-flagged exceptions (escalated incidents)
-        long escalatedIncidents = userRecentIncidents.stream()
+        long sellerEscalatedIncidents = sellerRecentIncidents.stream()
                 .filter(i -> i.getEscalationLevel() > 0)
                 .count();
-        factors.put("escalated_incidents_30d", escalatedIncidents);
-        score += escalatedIncidents * 15.0;
+        factors.put("seller_escalated_incidents_30d", sellerEscalatedIncidents);
+        score += sellerEscalatedIncidents * 15.0;
 
-        // Seller-specific: incidents assigned to this user (flagged by moderators)
-        long assignedIncidents = incidentRepository.findByAssigneeId(userId).stream()
-                .filter(i -> i.getCreatedAt() != null && i.getCreatedAt().isAfter(thirtyDaysAgo))
+        long sellerHighSeverityIncidents = sellerRecentIncidents.stream()
+                .filter(i -> "HIGH".equals(i.getSeverity()) || "EMERGENCY".equals(i.getSeverity()))
                 .count();
-        factors.put("assigned_incidents_30d", assignedIncidents);
-        score += assignedIncidents * 12.0;
+        factors.put("seller_high_severity_incidents_30d", sellerHighSeverityIncidents);
+        score += sellerHighSeverityIncidents * 12.0;
 
-        // Repeat incident signal: if same user has >2 incidents in 30 days
-        long repeatSignal = userRecentIncidents.size() > 2 ? userRecentIncidents.size() - 2 : 0;
-        factors.put("repeat_incident_penalty", repeatSignal);
+        // Repeat complaint signal: if a seller accumulates >2 incidents in 30d,
+        // each additional incident stacks.
+        long sellerIncidentCount = sellerRecentIncidents.size();
+        long repeatSignal = sellerIncidentCount > 2 ? sellerIncidentCount - 2 : 0;
+        factors.put("seller_repeat_incident_penalty", repeatSignal);
         score += repeatSignal * 8.0;
+
+        factors.put("seller_total_incidents_30d", sellerIncidentCount);
 
         // Rejected appeals (staff exceptions denied)
         long rejectedAppeals = appealRepository.findByUserId(userId).stream()
@@ -143,11 +147,15 @@ public class RiskAnalyticsService {
         RiskScoreEntity riskScore = riskScoreRepository.findByUserId(userId)
                 .orElse(RiskScoreEntity.builder().userId(userId).build());
 
+        long openSellerIncidents = sellerRecentIncidents.stream()
+                .filter(i -> !"RESOLVED".equals(i.getStatus()) && !"CLOSED".equals(i.getStatus()))
+                .count();
+
         riskScore.setScore(score);
         riskScore.setFactors(factorsJson);
         riskScore.setComputedAt(LocalDateTime.now());
-        riskScore.setSellerComplaintCount((int) escalatedIncidents);
-        riskScore.setOpenIncidentCount((int) assignedIncidents);
+        riskScore.setSellerComplaintCount((int) sellerIncidentCount);
+        riskScore.setOpenIncidentCount((int) openSellerIncidents);
         riskScore.setAppealRejectionCount((int) rejectedAppeals);
 
         return riskScoreRepository.save(riskScore);

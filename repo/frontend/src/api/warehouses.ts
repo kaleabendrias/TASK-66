@@ -16,14 +16,39 @@ export async function getLowStockItems(): Promise<InventoryItem[]> {
   return data;
 }
 
-export async function adjustStock(payload: {
+export interface InboundPayload {
   inventoryItemId: number;
-  quantityChange: number;
-  movementType: string;
+  quantity: number;
   referenceDocument: string;
   notes: string;
-}): Promise<InventoryMovement> {
-  const { data } = await client.post<InventoryMovement>('/inventory/adjust', payload);
+}
+
+export interface OutboundPayload {
+  inventoryItemId: number;
+  quantity: number;
+  referenceDocument: string;
+  notes: string;
+}
+
+export interface StocktakePayload {
+  productId: number;
+  warehouseId: number;
+  countedQuantity: number;
+  referenceDocument: string;
+}
+
+export async function recordInbound(payload: InboundPayload): Promise<InventoryMovement> {
+  const { data } = await client.post<InventoryMovement>('/inventory/inbound', payload);
+  return data;
+}
+
+export async function recordOutbound(payload: OutboundPayload): Promise<InventoryMovement> {
+  const { data } = await client.post<InventoryMovement>('/inventory/outbound', payload);
+  return data;
+}
+
+export async function recordStocktake(payload: StocktakePayload): Promise<InventoryMovement> {
+  const { data } = await client.post<InventoryMovement>('/inventory/stocktake', payload);
   return data;
 }
 

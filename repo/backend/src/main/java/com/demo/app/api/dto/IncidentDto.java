@@ -6,6 +6,7 @@ public record IncidentDto(
         Long id,
         Long reporterId,
         Long assigneeId,
+        Long sellerId,
         String incidentType,
         String severity,
         String title,

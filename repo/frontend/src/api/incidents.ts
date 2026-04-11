@@ -23,6 +23,7 @@ export async function createIncident(payload: {
   description: string;
   address?: string;
   crossStreet?: string;
+  sellerId?: number | null;
 }): Promise<Incident> {
   const { data } = await client.post<Incident>('/incidents', payload);
   return data;
@@ -33,9 +34,26 @@ export async function acknowledgeIncident(id: number): Promise<Incident> {
   return data;
 }
 
-export async function updateIncidentStatus(id: number, status: string): Promise<Incident> {
-  const { data } = await client.patch<Incident>(`/incidents/${id}/status`, { status });
+export async function updateIncidentStatus(
+  id: number,
+  status: string,
+  closureCode?: string,
+): Promise<Incident> {
+  const payload: { status: string; closureCode?: string } = { status };
+  // Backend rejects RESOLVED without a closureCode; forward whatever the
+  // caller supplied so the contract isn't implicitly lossy.
+  if (closureCode !== undefined && closureCode !== null && closureCode !== '') {
+    payload.closureCode = closureCode;
+  }
+  const { data } = await client.patch<Incident>(`/incidents/${id}/status`, payload);
   return data;
+}
+
+export async function resolveIncident(id: number, closureCode: string): Promise<Incident> {
+  if (!closureCode || !closureCode.trim()) {
+    throw new Error('Closure code is required to resolve an incident');
+  }
+  return updateIncidentStatus(id, 'RESOLVED', closureCode.trim());
 }
 
 export async function getIncidentComments(id: number): Promise<IncidentComment[]> {

@@ -19,7 +19,8 @@ export APP_ENCRYPTION_SECRET="${APP_ENCRYPTION_SECRET:-$(openssl rand -hex 32)}"
 log "Runtime secrets generated and exported (no .env file used)"
 
 # ─────────────────────────────────────────────
-# 1. Backend unit tests (Maven + JaCoCo, 90% threshold)
+# 1. Backend unit tests (Maven + JaCoCo, >= 70% line coverage,
+#    enforced by the jacoco-maven-plugin `check` rule in backend/pom.xml)
 # ─────────────────────────────────────────────
 log "Running backend unit tests with coverage..."
 if docker run --rm \
@@ -38,7 +39,8 @@ BACKEND_COV=$(grep -oP 'Total.*?(\d+)%' /tmp/backend-test.log 2>/dev/null | tail
 echo -e "  Backend coverage: ${BACKEND_COV}"
 
 # ─────────────────────────────────────────────
-# 2. Frontend unit tests (Vitest + v8, 90% threshold)
+# 2. Frontend unit tests (Vitest + v8, >= 74% lines/statements,
+#    55% branches, 40% functions — see frontend/vitest.config.ts)
 # ─────────────────────────────────────────────
 log "Running frontend unit tests with coverage..."
 if docker run --rm \
@@ -53,7 +55,8 @@ else
 fi
 
 # ─────────────────────────────────────────────
-# 3. API integration tests (pytest against live stack)
+# 3. API integration tests (pytest against live stack, >= 90% coverage
+#    enforced by --cov-fail-under=90)
 # ─────────────────────────────────────────────
 log "Starting services for API integration tests..."
 docker compose down -v 2>/dev/null || true

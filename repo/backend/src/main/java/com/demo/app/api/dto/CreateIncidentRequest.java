@@ -11,5 +11,6 @@ public record CreateIncidentRequest(
         @NotBlank String title,
         @NotBlank String description,
         String address,
-        String crossStreet) {
+        String crossStreet,
+        Long sellerId) {
 }

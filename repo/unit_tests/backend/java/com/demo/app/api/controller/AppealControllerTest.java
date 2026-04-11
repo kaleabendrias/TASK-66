@@ -4,8 +4,10 @@ import com.demo.app.DemoApplication;
 import com.demo.app.TestFixtures;
 import com.demo.app.domain.enums.Role;
 import com.demo.app.persistence.entity.AppealEntity;
+import com.demo.app.persistence.entity.IncidentEntity;
 import com.demo.app.persistence.entity.UserEntity;
 import com.demo.app.persistence.repository.AppealRepository;
+import com.demo.app.persistence.repository.IncidentRepository;
 import com.demo.app.persistence.repository.UserRepository;
 import com.demo.app.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,7 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+import org.springframework.mock.web.MockMultipartFile;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -37,8 +42,11 @@ class AppealControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private AppealRepository appealRepository;
+    @Autowired private IncidentRepository incidentRepository;
     @Autowired private JwtService jwtService;
     @Autowired private ObjectMapper objectMapper;
+
+    private Long validIncidentId;
 
     private String memberToken;
     private String moderatorToken;
@@ -58,10 +66,23 @@ class AppealControllerTest {
         moderatorToken = jwtService.generateToken(moderator.getUsername(), moderator.getRole().name());
         otherMemberToken = jwtService.generateToken(otherMember.getUsername(), otherMember.getRole().name());
 
+        IncidentEntity incident = incidentRepository.save(IncidentEntity.builder()
+                .reporterId(member.getId())
+                .incidentType("ORDER_ISSUE")
+                .severity("NORMAL")
+                .title("appeal test incident")
+                .description("desc")
+                .status("OPEN")
+                .escalationLevel(0)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build());
+        validIncidentId = incident.getId();
+
         appeal = appealRepository.save(AppealEntity.builder()
                 .userId(member.getId())
-                .relatedEntityType("PRODUCT")
-                .relatedEntityId(1L)
+                .relatedEntityType("INCIDENT")
+                .relatedEntityId(validIncidentId)
                 .reason("Testing appeal")
                 .status("SUBMITTED")
                 .createdAt(LocalDateTime.now())
@@ -72,11 +93,31 @@ class AppealControllerTest {
     @DisplayName("POST /appeals with valid body returns 200 and SUBMITTED status")
     void create_validBody_returnsSubmitted() throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
-                "relatedEntityType", "ORDER", "relatedEntityId", 1, "reason", "My reason"));
+                "relatedEntityType", "INCIDENT", "relatedEntityId", validIncidentId, "reason", "My reason"));
         mockMvc.perform(post("/api/appeals").header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
+    }
+
+    @Test
+    @DisplayName("POST /appeals rejects relatedEntityId that does not exist")
+    void create_missingRelatedEntity_returnsNotFound() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+                "relatedEntityType", "INCIDENT", "relatedEntityId", 9_999_999, "reason", "bogus"));
+        mockMvc.perform(post("/api/appeals").header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("POST /appeals rejects unknown relatedEntityType")
+    void create_unknownRelatedEntityType_returnsBadRequest() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+                "relatedEntityType", "WIDGET", "relatedEntityId", validIncidentId, "reason", "unknown type"));
+        mockMvc.perform(post("/api/appeals").header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -150,5 +191,123 @@ class AppealControllerTest {
                         .header("Authorization", "Bearer " + memberToken)
                         .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isForbidden());
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Multipart evidence upload — magic-byte and boundary validation
+    // ─────────────────────────────────────────────────────────────────
+
+    private static byte[] jpegBytes() {
+        // Bare-minimum JPEG magic bytes — enough for the controller's header sniff.
+        return new byte[] {
+                (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0,
+                0x00, 0x10, 'J', 'F', 'I', 'F', 0x00, 0x01, 0x01,
+        };
+    }
+
+    private static byte[] pngBytes() {
+        return new byte[] {
+                (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                0x00, 0x00, 0x00, 0x0D, 'I', 'H', 'D', 'R',
+        };
+    }
+
+    private static byte[] webpBytes() {
+        // RIFF/WEBP: 'RIFF' (4) + little-endian size (4) + 'WEBP' (4) + 'VP8 ' chunk.
+        return new byte[] {
+                'R', 'I', 'F', 'F',
+                0x24, 0x00, 0x00, 0x00, // dummy size — these are the bytes the buggy
+                // check was comparing against "WEBP" — they never match.
+                'W', 'E', 'B', 'P',
+                'V', 'P', '8', ' ',
+        };
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence accepts a JPEG upload with proper multipart boundary")
+    void uploadEvidence_acceptsJpeg() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "photo.jpg", "image/jpeg", jpegBytes());
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalName").value("photo.jpg"))
+                .andExpect(jsonPath("$.contentType").value("image/jpeg"));
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence accepts a PNG upload")
+    void uploadEvidence_acceptsPng() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "diagram.png", "image/png", pngBytes());
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contentType").value("image/png"));
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence accepts a valid RIFF/WEBP upload (regression: offset 8..11)")
+    void uploadEvidence_acceptsValidWebP() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "shot.webp", "image/webp", webpBytes());
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contentType").value("image/webp"));
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence rejects content whose bytes don't match any allowed magic")
+    void uploadEvidence_rejectsForgedContentType() throws Exception {
+        // Claims image/png but the content is plain text.
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "fake.png", "image/png", "not a real image".getBytes());
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence rejects an empty multipart part")
+    void uploadEvidence_rejectsEmptyPart() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "empty.png", "image/png", new byte[0]);
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence rejects a RIFF container whose chunk type is not WEBP")
+    void uploadEvidence_rejectsRiffButNotWebp() throws Exception {
+        byte[] riffWave = new byte[] {
+                'R', 'I', 'F', 'F',
+                0x24, 0x00, 0x00, 0x00,
+                'W', 'A', 'V', 'E', // Not WEBP — must be rejected.
+                'f', 'm', 't', ' ',
+        };
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "audio.webp", "image/webp", riffWave);
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("POST /{id}/evidence rejects non-image content types (boundary fuzzing)")
+    void uploadEvidence_rejectsDisallowedContentType() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "virus.exe", "application/octet-stream", new byte[] { 'M', 'Z' });
+        mockMvc.perform(multipart("/api/appeals/" + appeal.getId() + "/evidence")
+                        .file(file)
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isBadRequest());
     }
 }

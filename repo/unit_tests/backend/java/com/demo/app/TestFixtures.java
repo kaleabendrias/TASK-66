@@ -2,6 +2,7 @@ package com.demo.app;
 
 import com.demo.app.domain.enums.ProductStatus;
 import com.demo.app.domain.enums.Role;
+import com.demo.app.infrastructure.encryption.EmailHashUtil;
 import com.demo.app.persistence.entity.*;
 
 import java.math.BigDecimal;
@@ -12,9 +13,11 @@ public final class TestFixtures {
     private TestFixtures() {}
 
     public static UserEntity user(String username, Role role) {
+        String email = username + "@test.local";
         return UserEntity.builder()
                 .username(username)
-                .email(username + "@test.local")
+                .email(email)
+                .emailLookupHash(EmailHashUtil.hash(email))
                 .passwordHash("$2a$10$CDdcj12dr65C27ckLRMFQevdNud3wkqYzCcyk5iCsqCihFJDF1Ol2") // password123
                 .displayName("Test " + username)
                 .role(role)

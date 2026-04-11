@@ -14,6 +14,13 @@ public interface IncidentRepository extends JpaRepository<IncidentEntity, Long> 
 
     List<IncidentEntity> findByAssigneeId(Long assigneeId);
 
+    List<IncidentEntity> findBySellerId(Long sellerId);
+
+    @Query("SELECT i FROM IncidentEntity i " +
+           "WHERE i.sellerId = :sellerId AND i.createdAt IS NOT NULL AND i.createdAt > :since")
+    List<IncidentEntity> findBySellerIdSince(@Param("sellerId") Long sellerId,
+                                             @Param("since") LocalDateTime since);
+
     List<IncidentEntity> findByStatus(String status);
 
     @Query("SELECT i FROM IncidentEntity i WHERE i.status = 'OPEN' AND i.slaAckDeadline IS NOT NULL AND i.slaAckDeadline < :now")

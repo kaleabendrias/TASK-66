@@ -159,4 +159,45 @@ class IncidentControllerTest {
                         .header("Authorization", "Bearer " + otherMemberToken))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("POST /incidents accepts a sellerId pointing at an existing user")
+    void create_withValidSellerId_persistsLinkage() throws Exception {
+        UserEntity seller = userRepository.save(TestFixtures.user("inc_seller_valid", Role.SELLER));
+        String body = objectMapper.writeValueAsString(Map.of(
+                "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
+                "title", "Against seller", "description", "details",
+                "sellerId", seller.getId()));
+        mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sellerId").value(seller.getId()));
+    }
+
+    @Test
+    @DisplayName("POST /incidents rejects sellerId that does not exist")
+    void create_withUnknownSellerId_returnsBadRequest() throws Exception {
+        String body = objectMapper.writeValueAsString(Map.of(
+                "incidentType", "ORDER_ISSUE", "severity", "NORMAL",
+                "title", "Against ghost", "description", "details",
+                "sellerId", 9_999_999));
+        mockMvc.perform(post("/api/incidents").header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("PATCH /{id}/status RESOLVED without closureCode returns bad request")
+    void updateStatus_resolvedWithoutClosureCode_returnsBadRequest() throws Exception {
+        incidentRepository.findById(incident.getId()).ifPresent(e -> {
+            e.setStatus("IN_PROGRESS");
+            e.setAssigneeId(moderator.getId());
+            incidentRepository.save(e);
+        });
+        String body = objectMapper.writeValueAsString(Map.of("status", "RESOLVED"));
+        mockMvc.perform(patch("/api/incidents/" + incident.getId() + "/status")
+                        .header("Authorization", "Bearer " + moderatorToken)
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+    }
 }

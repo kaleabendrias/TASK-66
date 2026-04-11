@@ -12,7 +12,9 @@ import {
   getWarehouses,
   getInventoryByProduct,
   getLowStockItems,
-  adjustStock,
+  recordInbound,
+  recordOutbound,
+  recordStocktake,
   reserveStock,
   confirmReservation,
   cancelReservation,
@@ -43,17 +45,40 @@ describe('warehouses API', () => {
     expect(result).toEqual([]);
   });
 
-  it('adjustStock calls POST /inventory/adjust', async () => {
+  it('recordInbound calls POST /inventory/inbound with the inbound payload', async () => {
     const payload = {
       inventoryItemId: 1,
-      quantityChange: 10,
-      movementType: 'ADJUSTMENT',
-      referenceDocument: 'REF-1',
-      notes: 'test',
+      quantity: 10,
+      referenceDocument: 'PO-1',
+      notes: 'received',
     };
-    (client.post as any).mockResolvedValue({ data: { id: 1 } });
-    await adjustStock(payload);
-    expect(client.post).toHaveBeenCalledWith('/inventory/adjust', payload);
+    (client.post as any).mockResolvedValue({ data: { id: 1, movementType: 'INBOUND' } });
+    await recordInbound(payload);
+    expect(client.post).toHaveBeenCalledWith('/inventory/inbound', payload);
+  });
+
+  it('recordOutbound calls POST /inventory/outbound with the outbound payload', async () => {
+    const payload = {
+      inventoryItemId: 2,
+      quantity: 5,
+      referenceDocument: 'SO-7',
+      notes: 'shipped',
+    };
+    (client.post as any).mockResolvedValue({ data: { id: 2, movementType: 'OUTBOUND' } });
+    await recordOutbound(payload);
+    expect(client.post).toHaveBeenCalledWith('/inventory/outbound', payload);
+  });
+
+  it('recordStocktake calls POST /inventory/stocktake with productId/warehouseId/countedQuantity', async () => {
+    const payload = {
+      productId: 7,
+      warehouseId: 1,
+      countedQuantity: 42,
+      referenceDocument: 'COUNT-Q2',
+    };
+    (client.post as any).mockResolvedValue({ data: { id: 3, movementType: 'STOCKTAKE' } });
+    await recordStocktake(payload);
+    expect(client.post).toHaveBeenCalledWith('/inventory/stocktake', payload);
   });
 
   it('reserveStock calls POST /reservations', async () => {
