@@ -62,10 +62,11 @@ public class ListingEntity {
     private double searchRank;
 
     // Likewise: production column is `jsonb`, but H2 doesn't have a literal
-    // jsonb type. We treat it as an opaque string at the JPA layer (the app
-    // never queries inside the document) so a plain String column works in
-    // both engines without a columnDefinition.
+    // jsonb type. @JdbcTypeCode(SqlTypes.JSON) makes Hibernate emit the value
+    // through the JSON type handler, which PostgreSQL accepts for jsonb columns
+    // and H2 accepts for its JSON type (created by ddl-auto in tests).
     @Column(name = "metadata")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String metadata;
 
     @Column(name = "status", nullable = false)

@@ -130,7 +130,6 @@ const IncidentsPage: React.FC = () => {
                   placeholder="User ID of the seller this incident is filed against"
                   value={form.sellerId}
                   onChange={(e) => setForm({ ...form, sellerId: e.target.value })}
-                  required
                 />
                 <small className="text-muted">
                   Drives seller-scoped risk analytics. Must reference an existing user.

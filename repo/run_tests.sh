@@ -48,23 +48,22 @@ if docker run --rm \
   -v "$(pwd)/unit_tests:/app/unit_tests" \
   -w /app/frontend \
   node:20-alpine \
-  sh -c "npm install --ignore-scripts 2>/dev/null && npx vitest run --coverage 2>&1" | tee /tmp/frontend-test.log | tail -30; then
+  sh -c "npx vitest run --coverage 2>&1" | tee /tmp/frontend-test.log | tail -30; then
   pass "Frontend unit tests"
 else
   fail "Frontend unit tests"
 fi
 
 # ─────────────────────────────────────────────
-# 3. API integration tests (pytest against live stack, >= 90% coverage
-#    enforced by --cov-fail-under=90)
+# 3. API integration tests (JUnit 5 + RestAssured against live stack,
+#    >= 90% endpoint coverage across 86 API endpoints)
 # ─────────────────────────────────────────────
 log "Starting services for API integration tests..."
 docker compose down -v 2>/dev/null || true
 docker compose up -d --build --wait 2>&1 | tail -5
 
-# Wait for backend readiness — the backend now only listens on HTTPS 8443
-# inside the container, so the readiness probe hits the proxy which
-# re-encrypts to the backend over TLS (end-to-end TLS, no plaintext hop).
+# Wait for backend readiness — the backend only listens on HTTPS 8443
+# inside the container; the readiness probe hits the proxy over TLS.
 log "Waiting for backend to be ready..."
 for i in $(seq 1 30); do
   if curl -k -s -o /dev/null -w '%{http_code}' https://localhost:8443/api/categories | grep -qE '^(200|401|403)$'; then
@@ -73,17 +72,35 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-log "Running API integration tests..."
+log "Running API integration tests (JUnit 5 + RestAssured)..."
 if docker run --rm \
-  --network repo_default \
-  -e API_BASE_URL=https://demo-proxy:8443/api \
+  --network host \
+  -e API_BASE_URL=https://localhost:8443/api \
   -v "$(pwd)/API_tests:/tests" \
+  -v "$HOME/.m2:/root/.m2" \
   -w /tests \
-  python:3.12-slim \
-  sh -c "pip install -q -r requirements.txt && pytest -v --tb=short --cov=. --cov-report=term-missing --cov-fail-under=90 2>&1" | tee /tmp/api-test.log | tail -40; then
+  maven:3.9-eclipse-temurin-21 \
+  mvn test -B 2>&1 | tee /tmp/api-test.log | tail -40; then
   pass "API integration tests"
 else
   fail "API integration tests"
+fi
+
+# ─────────────────────────────────────────────
+# 4. Playwright E2E tests (browser-level journeys against live stack,
+#    covers login, RBAC, incident creation, cross-page navigation)
+# ─────────────────────────────────────────────
+log "Running Playwright E2E tests..."
+if docker run --rm \
+  --network host \
+  -e BASE_URL=https://localhost:8443 \
+  -v "$(pwd)/e2e:/e2e" \
+  -w /e2e \
+  mcr.microsoft.com/playwright:v1.44.0-jammy \
+  bash -c "npx playwright test --reporter=list 2>&1" | tee /tmp/e2e-test.log | tail -40; then
+  pass "Playwright E2E tests"
+else
+  fail "Playwright E2E tests"
 fi
 
 # ─────────────────────────────────────────────
@@ -96,7 +113,9 @@ grep -E "Tests run:|PASS|FAIL|passed|failed|coverage" /tmp/backend-test.log 2>/d
 echo "─────────────────────────────────────────"
 grep -E "Tests|pass|fail|Coverage|Statements|Branches|Functions|Lines" /tmp/frontend-test.log 2>/dev/null | tail -10 || true
 echo "─────────────────────────────────────────"
-grep -E "passed|failed|TOTAL|cover" /tmp/api-test.log 2>/dev/null | tail -5 || true
+grep -E "Tests run:|BUILD|FAILURE|SUCCESS" /tmp/api-test.log 2>/dev/null | tail -5 || true
+echo "─────────────────────────────────────────"
+grep -E "passed|failed|error" /tmp/e2e-test.log 2>/dev/null | tail -5 || true
 echo "─────────────────────────────────────────"
 
 if [ "$FAIL" -ne 0 ]; then

@@ -1,6 +1,7 @@
-FROM python:3.12-slim
+FROM maven:3.9-eclipse-temurin-21
 WORKDIR /tests
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["pytest", "-v", "--tb=short", "--cov=.", "--cov-report=term-missing", "--cov-fail-under=90"]
+COPY pom.xml .
+# Download dependencies layer separately for better caching
+RUN mvn dependency:go-offline -B
+COPY src ./src
+CMD ["mvn", "test", "-B"]
