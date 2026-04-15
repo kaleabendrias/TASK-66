@@ -6,6 +6,11 @@ import { test, expect, Page } from '@playwright/test';
  * - Fulfillment lifecycle: create + step advancement verifiable end-to-end
  * - Appeal submission by member via UI form
  * - Appeal review by moderator via UI
+ *
+ * Rate-limit note: all specs share the same backend 60 req/min per-user bucket.
+ * By the time this file runs, the seeded 'member' account has usually exhausted
+ * its quota. Each test therefore registers a fresh unique user (/api/auth/register
+ * is exempt from rate limiting) so transactions run against a clean bucket.
  */
 
 async function loginAs(page: Page, username: string): Promise<string> {
@@ -17,6 +22,20 @@ async function loginAs(page: Page, username: string): Promise<string> {
   await page.getByRole('button', { name: 'Login' }).click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15000 });
   return page.evaluate(() => localStorage.getItem('token') ?? '');
+}
+
+/**
+ * Register a unique MEMBER user and complete a UI login, returning the JWT.
+ * Uses a fresh bucket so earlier specs' quota consumption is irrelevant.
+ */
+async function freshMember(page: Page): Promise<string> {
+  const username = `tx_mbr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const regResp = await page.request.post('/api/auth/register', {
+    headers: { 'Content-Type': 'application/json' },
+    data: { username, password: 'password123', displayName: 'TX Member', email: `${username}@test.com` },
+  });
+  expect(regResp.status()).toBe(200);
+  return loginAs(page, username);
 }
 
 async function placeOrderApi(page: Page, token: string, productId: number): Promise<number> {
@@ -33,7 +52,7 @@ async function placeOrderApi(page: Page, token: string, productId: number): Prom
 
 test.describe('Order lifecycle', () => {
   test('placed order appears in member orders list with server-computed price', async ({ page }) => {
-    const token = await loginAs(page, 'member');
+    const token = await freshMember(page);
     const orderId = await placeOrderApi(page, token, 1);
 
     await page.goto('/orders');
@@ -45,7 +64,7 @@ test.describe('Order lifecycle', () => {
   });
 
   test('cancelled order shows CANCELLED status in the orders list', async ({ page }) => {
-    const token = await loginAs(page, 'member');
+    const token = await freshMember(page);
     const orderId = await placeOrderApi(page, token, 1);
 
     // Cancel via API (200 if succeeded, 409 if already in non-cancellable state)
@@ -60,7 +79,7 @@ test.describe('Order lifecycle', () => {
   });
 
   test('member cannot set order status to SHIPPED', async ({ page }) => {
-    const token = await loginAs(page, 'member');
+    const token = await freshMember(page);
     const orderId = await placeOrderApi(page, token, 1);
 
     const resp = await page.request.patch(`/api/orders/${orderId}/status?status=SHIPPED`, {
@@ -82,7 +101,7 @@ test.describe('Fulfillment pipeline', () => {
    * keeps the rate-limit budget intact and makes the page load deterministic.
    */
   test('warehouse creates and advances fulfillment — page reflects final step state', async ({ page }) => {
-    const memberToken = await loginAs(page, 'member');
+    const memberToken = await freshMember(page);
     const orderId = await placeOrderApi(page, memberToken, 1);
 
     const warehouseToken = await loginAs(page, 'warehouse');
@@ -130,7 +149,7 @@ test.describe('Fulfillment pipeline', () => {
 
 test.describe('Appeal workflow', () => {
   test('member submits appeal via UI form and it appears in the list', async ({ page }) => {
-    await loginAs(page, 'member');
+    await freshMember(page);
     await page.goto('/appeals');
     await expect(page.getByRole('heading', { name: /appeals/i })).toBeVisible({ timeout: 10000 });
 
@@ -152,8 +171,9 @@ test.describe('Appeal workflow', () => {
   });
 
   test('moderator reviews a submitted appeal and approves it via the inline UI', async ({ page }) => {
-    // Create appeal using the member token in the same page context (avoids separate context overhead)
-    const memberToken = await loginAs(page, 'member');
+    // Create appeal using a fresh member token (avoids rate-limit collision with
+    // the shared 'member' seed account used by earlier specs).
+    const memberToken = await freshMember(page);
     const appealResp = await page.request.post('/api/appeals', {
       headers: { Authorization: `Bearer ${memberToken}`, 'Content-Type': 'application/json' },
       data: {

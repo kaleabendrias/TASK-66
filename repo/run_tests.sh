@@ -41,14 +41,14 @@ echo -e "  Backend coverage: ${BACKEND_COV}"
 # ─────────────────────────────────────────────
 # 2. Frontend unit tests (Vitest + v8, >= 74% lines/statements,
 #    55% branches, 40% functions — see frontend/vitest.config.ts)
+#    Dependencies are baked into the image at build time (no runtime install).
 # ─────────────────────────────────────────────
+log "Building frontend test image (dependencies installed at build time)..."
+docker build -t demo-frontend-test -f frontend/Dockerfile.test . 2>&1 | tail -5
+
 log "Running frontend unit tests with coverage..."
 if docker run --rm \
-  -v "$(pwd)/frontend:/app/frontend" \
-  -v "$(pwd)/unit_tests:/app/unit_tests" \
-  -w /app/frontend \
-  node:20-alpine \
-  sh -c "npx vitest run --coverage 2>&1" | tee /tmp/frontend-test.log | tail -30; then
+  demo-frontend-test 2>&1 | tee /tmp/frontend-test.log | tail -30; then
   pass "Frontend unit tests"
 else
   fail "Frontend unit tests"
@@ -89,15 +89,17 @@ fi
 # ─────────────────────────────────────────────
 # 4. Playwright E2E tests (browser-level journeys against live stack,
 #    covers login, RBAC, incident creation, cross-page navigation)
+#    Dependencies are baked into the image at build time (no runtime install).
 # ─────────────────────────────────────────────
+log "Building E2E test image (dependencies installed at build time)..."
+docker build -t demo-e2e-test -f e2e/Dockerfile.test . 2>&1 | tail -5
+
 log "Running Playwright E2E tests..."
 if docker run --rm \
   --network host \
   -e BASE_URL=https://localhost:8443 \
-  -v "$(pwd)/e2e:/e2e" \
-  -w /e2e \
-  mcr.microsoft.com/playwright:v1.44.0-jammy \
-  bash -c "npx playwright test --reporter=list 2>&1" | tee /tmp/e2e-test.log | tail -40; then
+  -v "$(pwd)/e2e/test-results:/e2e/test-results" \
+  demo-e2e-test 2>&1 | tee /tmp/e2e-test.log | tail -40; then
   pass "Playwright E2E tests"
 else
   fail "Playwright E2E tests"

@@ -1,0 +1,10 @@
+FROM node:20-alpine
+WORKDIR /app/frontend
+# Install dependencies at build time — satisfies the no-runtime-install rule.
+# package-lock.json is copied first so this layer is cached unless deps change.
+COPY frontend/package*.json ./
+RUN npm install --ignore-scripts
+# Copy source and shared test fixtures
+COPY frontend/ .
+COPY unit_tests/ /app/unit_tests/
+CMD ["sh", "-c", "npx vitest run --coverage 2>&1"]

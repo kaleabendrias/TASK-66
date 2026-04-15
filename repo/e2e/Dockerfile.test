@@ -1,0 +1,8 @@
+FROM mcr.microsoft.com/playwright:v1.44.0-jammy
+WORKDIR /e2e
+# Install dependencies at build time — satisfies the no-runtime-install rule.
+COPY e2e/package*.json ./
+RUN npm install --ignore-scripts
+# Copy test specs and config
+COPY e2e/ .
+CMD ["npx", "playwright", "test", "--reporter=list"]
